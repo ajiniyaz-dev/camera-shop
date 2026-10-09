@@ -179,7 +179,9 @@ Phase 1 and Phase 2A commit: `dfe902cd7d9fa65b7c8092b2efd82ae53a645a88` — `Com
 
 Handoff commit for that checkpoint: `2473d4b6a5d9f232add8cd69d1b23e660f15f13e`
 
-The Phase 2B commit hash is recorded after that checkpoint is pushed. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`.
+Phase 2B commit: `af850e122c00c2f8a747ea78088daa0ce4dd08dd` — `Add import infrastructure schema`
+
+That commit is on `origin/main`. It contains 10 files. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`. This handoff note was added after that push.
 
 ## Next task
 
