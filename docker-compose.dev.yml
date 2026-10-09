@@ -1,0 +1,19 @@
+# Local overlay. Host ports bind to loopback only, and the API runs in local mode
+# so a placeholder SESSION_SECRET is accepted.
+# The nginx port list replaces the production mapping; it does not add a public port.
+#
+#   docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+
+  api:
+    environment:
+      APP_ENV: local
+      DEBUG: "false"
+
+  nginx:
+    ports: !override
+      - "127.0.0.1:8080:80"
