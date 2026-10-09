@@ -156,9 +156,15 @@ This handoff does not claim a newer full test run than that one.
 
 ## Git
 
-Intended remote: `https://github.com/ajiniyaz-dev/camera-shop`
+Remote `origin`: `https://github.com/ajiniyaz-dev/camera-shop`
 
-At the time this section was first written, branch `main` had no commits and no remote. Excel workbooks, `.env`, virtual environments, `node_modules`, and build output are gitignored. The commit hash and push result are filled in after the checkpoint is published.
+Branch `main` was pushed to `origin/main`.
+
+Initial commit: `dfe902cd7d9fa65b7c8092b2efd82ae53a645a88`
+
+Message: `Complete project foundation and core database schema`
+
+That commit contains 57 project files. The Excel workbooks, `.env`, virtual environments, `node_modules`, and build output are gitignored and were not included. This handoff note was added after that push and is committed separately.
 
 ## Next task
 
