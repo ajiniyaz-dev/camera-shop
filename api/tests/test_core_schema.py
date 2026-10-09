@@ -1,11 +1,12 @@
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,6 +18,7 @@ from app.models import (
     BusinessProfile,
     Category,
     CategoryTranslation,
+    ImportJob,
     Product,
     ProductImage,
     ProductSourceRecord,
@@ -40,13 +42,15 @@ CORE_TABLES = {
     "product_translations",
     "products",
 }
-DEFERRED_TABLES = {
+IMPORT_TABLES = {
     "admin_audit_log",
-    "admin_sessions",
     "import_assets",
     "import_files",
     "import_jobs",
     "import_rows",
+}
+DEFERRED_TABLES = {
+    "admin_sessions",
     "slug_redirects",
 }
 ADMIN_URLS = [
@@ -146,7 +150,26 @@ def _product(session: Session, slug: str, **overrides: object) -> Product:
     return product
 
 
+def _applied_job(session: Session) -> ImportJob:
+    job = session.scalars(select(ImportJob).limit(1)).first()
+    if job is not None:
+        return job
+    admin = AdminUser(email="schema-job@example.com", password_hash="stored-hash", role="admin")
+    session.add(admin)
+    session.flush()
+    job = ImportJob(
+        status="applied",
+        created_by=admin.id,
+        approved_by=admin.id,
+        applied_at=datetime.now(timezone.utc),
+    )
+    session.add(job)
+    session.flush()
+    return job
+
+
 def _source(session: Session, product: Product, match_key: str, **overrides: object) -> ProductSourceRecord:
+    job = _applied_job(session)
     values: dict[str, object] = {
         "product_id": product.id,
         "source_code": "hikvision",
@@ -156,8 +179,8 @@ def _source(session: Session, product: Product, match_key: str, **overrides: obj
         "source_model_raw": product.model_raw,
         "source_price_kind": "blank",
         "match_key": match_key,
-        "first_job_id": 1,
-        "last_job_id": 1,
+        "first_job_id": job.id,
+        "last_job_id": job.id,
     }
     values.update(overrides)
     record = ProductSourceRecord(**values)
@@ -194,9 +217,10 @@ def test_migration_creates_core_tables_and_company_seed(schema_engine) -> None:
             )
         }
         assert CORE_TABLES <= names
+        assert IMPORT_TABLES <= names
         assert DEFERRED_TABLES.isdisjoint(names)
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert version == "phase2a_core"
+        assert version == "phase2b_import"
         profile = connection.execute(
             text(
                 """
@@ -259,7 +283,7 @@ def test_migration_round_trip_from_empty_database() -> None:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
         engine.dispose()
         assert count == 1
-        assert version == "phase2a_core"
+        assert version == "phase2b_import"
     finally:
         if previous is None:
             os.environ.pop("DATABASE_URL", None)

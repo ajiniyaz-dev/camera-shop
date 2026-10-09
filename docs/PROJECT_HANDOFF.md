@@ -133,24 +133,39 @@ Behavior encoded in that schema:
 - `admin_users` exists for later authentication. There is no login route, no session table, and no seeded administrator.
 - Image MIME values allowed by the check constraint are `image/png`, `image/jpeg`, and `image/webp`. One non-rejected primary image per product is enforced by a partial unique index.
 
+### Phase 2B
+
+Verified by `api/app/models/imports.py`, `api/app/models/audit.py`, and Alembic revision `phase2b_import` in `api/alembic/versions/phase2b_import_schema.py`. It revises `phase2a_core`. The Phase 2A migration file was not rewritten.
+
+Tables added:
+
+- `import_jobs` — one review and one apply. A job may contain the Hikvision file, the EZVIZ file, or both. Unique `(job_id, source_code)` on `import_files` keeps the sources independent. A missing file is the absence of that source’s row, not a delete.
+- `import_files` — original filename, SHA-256, identification (`auto` or `admin_confirmed`), validation status, validation errors, stored object key, and `included_in_apply`. An invalid file must record at least one error and cannot be included in apply. A valid file may still be excluded.
+- `import_rows` — staged worksheet rows. Classification, action, resolution, raw cells, proposal, messages, matched product, and applied flag. Unique `(import_file_id, worksheet_name, source_row)`. Pending `conflict` and `possible_match` rows cannot be marked applied. `accept_excel` is the explicit approval to overwrite a manual value. `replace_prices` on the job defaults to false.
+- `import_assets` — extracted images, including `unassigned` and `shared_candidate`.
+- `admin_audit_log` — `actor_id` is nullable so an unknown failed login can be recorded. Detail JSON cannot contain `password`, `password_hash`, `secret`, `session_token`, or `token` keys.
+
+`publish_new_products` is `BOOLEAN NOT NULL DEFAULT TRUE` on `import_jobs`. Documented job statuses are `preview`, `rejected`, `applying`, `applied`, and `failed`. Those cover upload (the job and file rows), validation (`import_files.validation_status`), review (`preview` plus row resolution), applying, completed (`applied`), and failed. `applied` requires `applied_at`. `preview` and `rejected` cannot have `approved_by`.
+
+`product_source_records.first_job_id` and `last_job_id` now reference `import_jobs` with `ON DELETE RESTRICT`. On upgrade, existing catalog rows are kept. Referenced job ids are backfilled as `applied` jobs when an administrator already exists. If source rows point at missing job ids and no administrator exists, the foreign keys are added `NOT VALID` and those source rows stay. Downgrade to `phase2a_core` drops the import tables and leaves the Phase 2A rows.
+
+Not created: `admin_sessions`, `slug_redirects`. No workbook parser, image extractor, import endpoint, CRUD API, authentication endpoint, admin UI, public page, or SEO output.
+
 ### Test result
 
-On 2026-10-09, `pytest -q` of `tests/test_core_schema.py`, `tests/test_price_labels.py`, `tests/test_health.py`, and `tests/test_config.py` reported **22 passed** and 1 Starlette deprecation warning. That run included migration upgrade, downgrade, and upgrade again.
+On 2026-10-10, `pytest -q` reported **33 passed** and 1 Starlette deprecation warning. That run includes the Phase 2A regression tests, the Phase 2B constraint tests, upgrade from `phase2a_core` with existing rows, downgrade back to `phase2a_core`, and the no-administrator orphan-job path.
 
-The schema tests did not use the Compose `catalog` database. Host connections to the Compose Postgres published port `127.0.0.1:5433` timed out, and port 5432 was already taken by another server. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped `catalog_phase2a_test` and `catalog_phase2a_roundtrip`. The disposable container was removed afterward.
-
-Checked inside the Compose Postgres container at that time: database `catalog` had no tables. It was not migrated and was not dropped.
-
-This handoff does not claim a newer full test run than that one.
+The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped `catalog_phase2a_test`, `catalog_phase2a_roundtrip`, `catalog_phase2b_test`, `catalog_phase2b_upgrade`, and `catalog_phase2b_orphan`. The disposable container was removed afterward. The Compose database was not migrated and was not dropped.
 
 ## Known limitations
 
-- `product_source_records.first_job_id` and `last_job_id` are required integers with no foreign key. `import_jobs` does not exist yet.
 - `product_translations.search_vector` exists and is not filled by a trigger or by application code.
 - `business_profile.id` is fixed at 1.
-- Image rows accept only the three MIME types above.
-- Import parsing, staging, preview, and apply are not implemented.
-- These designed tables are not created yet: `import_jobs`, `import_files`, `import_rows`, `import_assets`, `admin_sessions`, `admin_audit_log`, `slug_redirects`.
+- Image rows and import assets accept only `image/png`, `image/jpeg`, and `image/webp`.
+- The audit log is append-only by application convention. The database does not block `UPDATE` or `DELETE`.
+- If a Phase 2A database has source rows pointing at job ids and has no administrator, the new job foreign keys are `NOT VALID` until an operator validates them.
+- Import parsing, staging, preview, and apply are not implemented. The tables can store that workflow; nothing writes them yet.
+- `admin_sessions` and `slug_redirects` are not created.
 - Login, CRUD APIs, admin UI, public catalog routes, and SEO output are not implemented.
 - The Compose host-port failure on 5433 was observed on this Windows machine. It is not evidence that the same port fails on the Ahost VPS.
 
@@ -158,20 +173,16 @@ This handoff does not claim a newer full test run than that one.
 
 Remote `origin`: `https://github.com/ajiniyaz-dev/camera-shop`
 
-Branch `main` was pushed to `origin/main`.
+Branch `main` tracks `origin/main`.
 
-Initial commit: `dfe902cd7d9fa65b7c8092b2efd82ae53a645a88`
+Phase 1 and Phase 2A commit: `dfe902cd7d9fa65b7c8092b2efd82ae53a645a88` — `Complete project foundation and core database schema`
 
-Message: `Complete project foundation and core database schema`
+Handoff commit for that checkpoint: `2473d4b6a5d9f232add8cd69d1b23e660f15f13e`
 
-That commit contains 57 project files. The Excel workbooks, `.env`, virtual environments, `node_modules`, and build output are gitignored and were not included. This handoff note was added after that push and is committed separately.
+The Phase 2B commit hash is recorded after that checkpoint is pushed. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`.
 
 ## Next task
 
-Phase 2B, and only the import-related database infrastructure:
+Phase 3: secure admin authentication and authorization.
 
-- `import_jobs`, `import_files`, `import_rows`, and `import_assets`
-- foreign keys from `product_source_records.first_job_id` and `last_job_id` to `import_jobs`
-- `publish_new_products` on `import_jobs`, default true
-
-Do not implement Excel parsing, image extraction, admin UI, authentication, sessions, the audit log, slug redirects, or public catalog pages in that task. Do not modify `data/source/`.
+`admin_sessions` does not exist yet. Do not implement the Excel importer, admin UI, public catalog pages, or SEO in that task. Do not modify `data/source/`.

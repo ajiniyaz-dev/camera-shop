@@ -47,11 +47,11 @@ def test_production_rejects_debug_mode() -> None:
         )
 
 
-def test_core_schema_revision_is_present() -> None:
+def test_schema_revisions_are_present() -> None:
     versions = Path(__file__).resolve().parents[1] / "alembic" / "versions"
     revisions = sorted(
         path.name
         for path in versions.glob("*.py")
         if path.name != "__init__.py"
     )
-    assert revisions == ["phase2a_core_schema.py"]
+    assert revisions == ["phase2a_core_schema.py", "phase2b_import_schema.py"]

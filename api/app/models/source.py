@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
 if TYPE_CHECKING:
+    from app.models.imports import ImportJob
     from app.models.product import Product
 
 SOURCE_PRICE_CHECK = """
@@ -38,12 +39,7 @@ SOURCE_PRICE_CHECK = """
 
 
 class ProductSourceRecord(Base):
-    """One current workbook mapping for an imported product.
-
-    ``first_job_id`` and ``last_job_id`` are the import job identifiers from
-    ``docs/database-design.md``. The foreign keys to ``import_jobs`` are added
-    in Phase 2B, when that table exists.
-    """
+    """One current workbook mapping for an imported product."""
 
     __tablename__ = "product_source_records"
     __table_args__ = (
@@ -80,14 +76,20 @@ class ProductSourceRecord(Base):
     internal_note: Mapped[str | None] = mapped_column(Text)
     match_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     first_job_id: Mapped[int] = mapped_column(
-        BigInteger,
+        ForeignKey(
+            "import_jobs.id",
+            name="fk_product_source_records_first_job_id",
+            ondelete="RESTRICT",
+        ),
         nullable=False,
-        comment="Import job id. Foreign key to import_jobs is added in Phase 2B.",
     )
     last_job_id: Mapped[int] = mapped_column(
-        BigInteger,
+        ForeignKey(
+            "import_jobs.id",
+            name="fk_product_source_records_last_job_id",
+            ondelete="RESTRICT",
+        ),
         nullable=False,
-        comment="Import job id. Foreign key to import_jobs is added in Phase 2B.",
     )
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -97,3 +99,13 @@ class ProductSourceRecord(Base):
     )
 
     product: Mapped[Product] = relationship(back_populates="source_record")
+    first_job: Mapped[ImportJob] = relationship(
+        "ImportJob",
+        foreign_keys=[first_job_id],
+        passive_deletes=True,
+    )
+    last_job: Mapped[ImportJob] = relationship(
+        "ImportJob",
+        foreign_keys=[last_job_id],
+        passive_deletes=True,
+    )
