@@ -332,7 +332,9 @@ Phase 5 checkpoint: `8c056246f01f7beddd112ea6e3fce627cf1fb233` — `Record the p
 
 That checkpoint is on `origin/main`. It contains the admin panel. No Alembic revision was added. The Excel workbooks were not modified.
 
-Phase 5 hardening follows that checkpoint. The commit hash is recorded in the note added immediately after the hardening commit.
+Phase 5 hardening commit: `a8ff03579d14584197d3e330053752e141ae40a2` — `Harden admin workflows and verification`
+
+That commit is the parent of this note. It changes the import review screen and this handoff. No Alembic revision was added. The Excel workbooks were not modified.
 
 ## Next task
 
