@@ -176,7 +176,7 @@ export default function ImportDetailPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  function reload() {
+  function reload(keepMessage?: string) {
     const query = new URLSearchParams({ page: String(page), page_size: "20" });
     if (action) {
       query.set("action", action);
@@ -194,7 +194,7 @@ export default function ImportDetailPage() {
         setTotal(nextRows.total);
         setAssets(nextAssets.assets);
         setAssetTotal(nextAssets.total);
-        setMessage("");
+        setMessage(keepMessage ?? "");
       })
       .catch((error: unknown) => {
         setMessage(error instanceof ApiError ? error.message : translate(locale, "error"));
@@ -241,7 +241,9 @@ export default function ImportDetailPage() {
       setConfirm(false);
       reload();
     } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : translate(locale, "error"));
+      const text = error instanceof ApiError ? error.message : translate(locale, "error");
+      setMessage(text);
+      reload(text);
     }
   }
 

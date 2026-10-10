@@ -242,9 +242,9 @@ On 2026-10-10, `pytest -q` from `api/` reported **74 passed** and 1 Starlette de
 
 The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped `catalog_phase4b_test`. The disposable container was removed afterward. The Compose database was not migrated and was not dropped.
 
-On 2026-10-10, after the Phase 5 catalog and import-review changes, `pytest -q --tb=short` from `api/` reported **78 passed, 0 failed, 0 skipped, 0 errors**, and the same Starlette deprecation warning. `PHASE2A_ADMIN_URL` pointed at a disposable cluster on `127.0.0.1:55432` whose only databases before the run were `postgres`, `template0`, and `template1`. The suite created and dropped its own named test databases. It did not use the Compose catalog database or the host PostgreSQL service on port 5432. Docker was not running. The later admin incoming-summary line is frontend-only and is covered by the typecheck and production build below, not by another pytest run.
+On 2026-10-10, after the Phase 5 catalog and import-review changes, `pytest -q --tb=short` from `api/` reported **78 passed, 0 failed, 0 skipped, 0 errors**, and the same Starlette deprecation warning. `PHASE2A_ADMIN_URL` pointed at a disposable cluster on `127.0.0.1:55432`. The suite created and dropped its own named test databases. It did not use the Compose catalog database or the host PostgreSQL service on port 5432. Docker was not running.
 
-From `web/`, `npm run typecheck` (`tsc --noEmit`) exited 0. `npm run build` exited 0 on Next.js 15.5.27. The build lists `/` as static and every `/admin` route as dynamic. There is no lint script and no frontend test runner. `package.json` was not given either one.
+The same command was run again after the failed-apply screen fix, against that same disposable cluster. Preflight showed database `postgres` on port `55432`, plus the browser database `catalog_phase5_harden`. Result: **78 passed, 0 failed, 0 skipped, 0 errors**, in 38.22s, with one Starlette deprecation warning (`httpx` via `starlette.testclient`). `npm run typecheck` exited 0 after that fix. `npm run build` exited 0 on Next.js 15.5.27 after the dev server was stopped. `/` is static and every `/admin` route is dynamic. There is no lint script and no frontend test runner.
 
 Browser checks used that same disposable cluster, database `catalog_phase5_browser`, API `127.0.0.1:8000`, and Next.js `http://localhost:3000`. The administrator was the test account `admin@example.com`. The Compose catalog was not migrated, imported, or dropped.
 
@@ -260,12 +260,22 @@ Checked in the browser:
 - A generated Hikvision workbook previewed as an insert. Apply with the confirmation checkbox returned status `applied` and created the product. A second upload of the same workbook, after the imported price was edited to `55.00`, showed a locked-price warning (`numeric 55.00` versus incoming `numeric 40.00 USD`) and a confirmation that named the price field.
 - A generated duplicate-model workbook stayed `preview` after apply and showed `Resolve blocking rows before applying this import.` Two conflict jobs were rejected. An applied job stayed `applied`. A file named like EZVIZ but structured as Hikvision stayed on the upload screen with `The workbook could not be staged.`
 
-Not checked in the browser:
+A later hardening pass used a new disposable database, `catalog_phase5_harden`, on the same kind of temporary cluster (`127.0.0.1:55432`). Docker and Nginx were not available, so production `deploy/nginx.conf` was not changed. A local stand-in on `127.0.0.1:8080` applied the same public-object rule: only a file under `media/objects/` is returned, and `/media/imports/`, `/media/private-uploads/`, directory listings, missing files, and `..` paths return 404. The admin UI was opened through that stand-in so image tags could load. Next.js development still does not serve `/media/objects/` by itself.
 
-- Paging image assets past the first 100. The generated workbooks contained no images, so both asset pagers stayed on page 1. `GET /api/admin/imports/{id}/assets?page=1&page_size=1` is covered by `api/tests/test_import_api.py`.
-- A job status of `failed`. The review screen has that state; inducing an unexpected apply error in the browser was not done.
-- Clicking product archive. `POST /products/{id}/archive` rejects `confirm: false` and archives with `confirm: true` in `api/tests/test_catalog_admin.py`.
-- Image bytes. The API stored the images and the screen showed the primary label, but Next.js development does not proxy `/media/objects/`.
+Checked in that pass:
+
+- Logged-out `/admin/products` reached `/admin/login`. Login succeeded. `document.cookie` contained `hikvision_csrf` and not `hikvision_session`. `localStorage` and `sessionStorage` were empty. `GET /api/admin/dashboard` without cookies returned 401. A write without `X-CSRF-Token` returned 403.
+- Two product images rendered (`naturalWidth` 1) from `/media/objects/{hash}.png`. Primary selection and deletion still worked. Cancelling image removal left both images.
+- Archive asked `Архивировать этот товар? Он останется в базе и не будет удалён.` Cancelling left the product `draft`. Confirming set `archived` without changing `on_request` or `in_stock`. The product list filter showed `HARDEN-1`, `on_request`, `in_stock`, `archived`.
+- A generated workbook showed a blank price as `on_request (blank)`, explicit `По запросу` as `on_request (explicit_on_request)`, and the Hilook discount note as an internal note beside the public price `115.00 USD`.
+- A generated workbook with 105 images paged the asset list `1 / 6` through `6 / 6`. The API returned 105 distinct ids, 20 per page and 5 on the last page, in id order. Excluding `Hikvision CAM-101` on page 6 stayed on page 6 and persisted `excluded: true`.
+- Unresolved conflicts blocked apply and stayed `preview`. The conflict buttons did not offer `accept_excel`. Excluding a conflict and then sending `accept_excel` returned 409, `A conflicting row cannot choose one Excel value.`
+- A disposable preview whose staged amount was not a number returned `The import could not be applied.`, left the catalog unchanged, and stored status `failed`. The screen now reloads after a failed apply, so the heading becomes `failed`, the failure text stays visible, and Apply is hidden. Repeating apply returned 409. A later upload of a valid workbook still applied.
+- Applying one valid row inserted one product. Applying that same job again returned the stored result and left the catalog at two products.
+
+Audit rows on that disposable database included `product_created`, `image_added`, `image_updated`, `image_removed`, `product_archived`, and `import_applied`.
+
+The earlier browser session had already covered language switching, dashboard counts, numeric versus `on_request` editing, stock independent of price, brand and category editing, profile save and clear, and the locked-price confirmation. Those screens were not rebuilt in this pass. Logout was not repeated.
 
 ## Known limitations
 
@@ -287,6 +297,9 @@ Not checked in the browser:
 - Login limits live in one process. Multiple Uvicorn workers do not share them.
 - Production session cookies are `Secure`. The current Nginx listener is HTTP until the client supplies a domain, so browsers will not store those cookies until TLS is added.
 - The CSRF cookie is readable by script on this origin so the admin UI can send the header. The session cookie stays `HttpOnly`.
+- Next.js development does not serve `/media/objects/`. Production Nginx does, and only that prefix. Workbooks under `imports/` and `private-uploads/` are not in the Nginx location.
+- Deleting a product image removes the database row and does not delete the checksum file. A later cleanup still has to check other references.
+- A repeated apply of an already `applied` job returns the stored result instead of rejecting the request. The admin screen hides Apply once the status is no longer `preview`.
 - The Compose host-port failure on 5433 was observed on this Windows machine. It is not evidence that the same port fails on the Ahost VPS.
 
 ## Git
@@ -315,7 +328,11 @@ That commit is on `origin/main`. It contains 25 files. The Phase 2A and Phase 2B
 
 Phase 5 commit: `a8614a03470995633ce5d8cc0dc84923782b9481` — `Complete admin panel and catalog management`
 
-That commit is the parent of this handoff note. It contains 29 files. No Alembic revision was added. The Excel workbooks were not modified and are not part of the commit.
+Phase 5 checkpoint: `8c056246f01f7beddd112ea6e3fce627cf1fb233` — `Record the published Phase 5 checkpoint`
+
+That checkpoint is on `origin/main`. It contains the admin panel. No Alembic revision was added. The Excel workbooks were not modified.
+
+Phase 5 hardening follows that checkpoint. The commit hash is recorded in the note added immediately after the hardening commit.
 
 ## Next task
 
