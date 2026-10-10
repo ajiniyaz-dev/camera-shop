@@ -33,6 +33,7 @@ services:
       API_INTERNAL_URL: http://api:8000
       APP_ENV: production
       DEBUG: "false"
+      TRUST_PROXY: "true"
     volumes:
       - catalog_media:/var/lib/catalog/media
     depends_on:

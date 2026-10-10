@@ -54,4 +54,8 @@ def test_schema_revisions_are_present() -> None:
         for path in versions.glob("*.py")
         if path.name != "__init__.py"
     )
-    assert revisions == ["phase2a_core_schema.py", "phase2b_import_schema.py"]
+    assert revisions == [
+        "phase2a_core_schema.py",
+        "phase2b_import_schema.py",
+        "phase3_admin_sessions.py",
+    ]

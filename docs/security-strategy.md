@@ -20,11 +20,13 @@ Baseline for one Ahost VPS. It covers authentication, the public/admin boundary,
 - Administrators are rows in `admin_users`. There is no self-registration.
 - Passwords use Argon2id. Plaintext and reversible encryption are not acceptable.
 - Login is rate-limited in the API process, about 10 attempts per IP per 15 minutes. Upload is limited more loosely per administrator so a mistake cannot flood the disk. Redis is not required.
-- The session cookie is `HttpOnly`, `Secure`, `SameSite=Lax`. The database stores a hash of the token.
-- Sessions expire and are revoked on logout. Each request checks `is_active`.
-- State-changing admin requests require a CSRF token in addition to the cookie.
+- The session cookie is `hikvision_session`: `HttpOnly`, `SameSite=Lax`, path `/api`. It is `Secure` when `APP_ENV=production`. Local HTTP development does not set `Secure`. The database stores an HMAC of the token, keyed by `SESSION_SECRET`, not the raw token.
+- Sessions expire after `SESSION_TTL_SECONDS` (default 12 hours) and are revoked on logout. Each request checks `is_active`.
+- State-changing admin requests require the CSRF token in both the non-`HttpOnly` cookie `hikvision_csrf` and the `X-CSRF-Token` header. The database stores only an HMAC of that token. A new login rotates it. Logout, expiry, and revocation discard it. The request `Origin` or `Referer` must match `PUBLIC_SITE_URL` or the request host.
+- Login limiting is in-process: `LOGIN_RATE_LIMIT_MAX` failures per address per `LOGIN_RATE_LIMIT_WINDOW_SECONDS` (defaults 10 and 900). It is not shared across workers. `TRUST_PROXY=true` uses `X-Real-IP` only. Client `X-Forwarded-For` is ignored. Nginx replaces `X-Real-IP` with the connecting client. Set `TRUST_PROXY` only when that proxy is the only path to the API.
+- Read routes use `require_admin`. State-changing admin routes use `require_admin_write`, which also checks the CSRF token and origin.
 - CORS is unnecessary when Nginx serves the UI and the API on one host. If it is enabled, it allows only that origin.
-- The first administrator is created by a one-off server command. The password is not committed.
+- The first administrator is created by `python -m app.cli.create_admin [email]`. The password is prompted, not accepted on the command line, and not committed. The command refuses when an administrator already exists.
 
 ## Authorization and audit
 

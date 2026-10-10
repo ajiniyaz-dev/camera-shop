@@ -49,8 +49,10 @@ IMPORT_TABLES = {
     "import_jobs",
     "import_rows",
 }
-DEFERRED_TABLES = {
+PHASE3_TABLES = {
     "admin_sessions",
+}
+DEFERRED_TABLES = {
     "slug_redirects",
 }
 ADMIN_URLS = [
@@ -218,9 +220,10 @@ def test_migration_creates_core_tables_and_company_seed(schema_engine) -> None:
         }
         assert CORE_TABLES <= names
         assert IMPORT_TABLES <= names
+        assert PHASE3_TABLES <= names
         assert DEFERRED_TABLES.isdisjoint(names)
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert version == "phase2b_import"
+        assert version == "phase3_admin_sessions"
         profile = connection.execute(
             text(
                 """
@@ -283,7 +286,7 @@ def test_migration_round_trip_from_empty_database() -> None:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
         engine.dispose()
         assert count == 1
-        assert version == "phase2b_import"
+        assert version == "phase3_admin_sessions"
     finally:
         if previous is None:
             os.environ.pop("DATABASE_URL", None)

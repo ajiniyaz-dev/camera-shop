@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     api_internal_url: str = "http://127.0.0.1:8000"
     debug: bool = False
     app_env: str = "local"
+    session_ttl_seconds: int = Field(default=12 * 60 * 60, ge=60, le=60 * 60 * 24 * 30)
+    login_rate_limit_max: int = Field(default=10, ge=1, le=1000)
+    login_rate_limit_window_seconds: int = Field(default=15 * 60, ge=1, le=60 * 60 * 24)
+    login_rate_limit_max_keys: int = Field(default=10_000, ge=1, le=1_000_000)
+    trust_proxy: bool = False
 
     @field_validator("database_url")
     @classmethod
@@ -50,6 +55,11 @@ class Settings(BaseSettings):
         if self.debug:
             raise ValueError("DEBUG must be false when APP_ENV is production")
         return self
+
+    def cookie_secure(self) -> bool:
+        """Production cookies are Secure. Local HTTP development leaves this off."""
+
+        return self.app_env == "production"
 
 
 @lru_cache

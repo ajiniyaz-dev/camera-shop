@@ -12,6 +12,7 @@ from app.models.columns import created_at, updated_at
 if TYPE_CHECKING:
     from app.models.audit import AdminAuditLog
     from app.models.imports import ImportJob
+    from app.models.session import AdminSession
 
 
 class AdminUser(Base):
@@ -42,5 +43,11 @@ class AdminUser(Base):
     audit_logs: Mapped[list[AdminAuditLog]] = relationship(
         "AdminAuditLog",
         back_populates="actor",
+        passive_deletes=True,
+    )
+    sessions: Mapped[list[AdminSession]] = relationship(
+        "AdminSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
         passive_deletes=True,
     )

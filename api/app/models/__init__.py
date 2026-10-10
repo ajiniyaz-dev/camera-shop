@@ -1,7 +1,8 @@
-"""Catalog, import, and audit models. Sessions and slug redirects are later work."""
+"""Catalog, import, audit, and session models. Slug redirects are later work."""
 
 from app.models.admin_user import AdminUser
 from app.models.audit import AdminAuditLog
+from app.models.session import AdminSession
 from app.models.brand import Brand, BrandTranslation
 from app.models.category import Category, CategoryTranslation
 from app.models.image import ProductImage
@@ -17,6 +18,7 @@ from app.models.source import ProductSourceRecord
 
 __all__ = [
     "AdminAuditLog",
+    "AdminSession",
     "AdminUser",
     "Brand",
     "BrandTranslation",

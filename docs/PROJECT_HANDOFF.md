@@ -149,13 +149,27 @@ Tables added:
 
 `product_source_records.first_job_id` and `last_job_id` now reference `import_jobs` with `ON DELETE RESTRICT`. On upgrade, existing catalog rows are kept. Referenced job ids are backfilled as `applied` jobs when an administrator already exists. If source rows point at missing job ids and no administrator exists, the foreign keys are added `NOT VALID` and those source rows stay. Downgrade to `phase2a_core` drops the import tables and leaves the Phase 2A rows.
 
-Not created: `admin_sessions`, `slug_redirects`. No workbook parser, image extractor, import endpoint, CRUD API, authentication endpoint, admin UI, public page, or SEO output.
+Not created in Phase 2B: `admin_sessions`, `slug_redirects`. No workbook parser, image extractor, import endpoint, CRUD API, authentication endpoint, admin UI, public page, or SEO output.
+
+### Phase 3
+
+Verified by `api/app/auth/`, `api/app/cli/create_admin.py`, and Alembic revision `phase3_admin_sessions` in `api/alembic/versions/phase3_admin_sessions.py`. It revises `phase2b_import`. The Phase 2A and Phase 2B migration files were not rewritten.
+
+- `POST /api/auth/login` checks Argon2id, writes a generic failure, and on success sets cookies and returns `id`, `email`, `role`, and `csrf_token`.
+- `POST /api/auth/logout` revokes the session when the CSRF token and origin match, then clears the cookies. A missing session still clears cookies and returns 204.
+- `GET /api/auth/me` returns `id`, `email`, and `role`, or 401.
+- `require_admin` is the backend dependency for later authenticated reads. `require_admin_write` is the dependency for later state-changing admin routes: it requires an active administrator, the CSRF token, and a matching origin. A non-admin role returns 403. The schema still allows only `admin`.
+- `admin_sessions` stores UUID `id`, `user_id` (`ON DELETE CASCADE`), HMAC digests `token_hash` and `csrf_token_hash`, `expires_at`, `revoked_at`, and `created_at`. Raw tokens are not stored.
+- Session cookie `hikvision_session` is `HttpOnly`, `SameSite=Lax`, path `/api`. `Secure` is set only when `APP_ENV=production`. Default lifetime is 12 hours (`SESSION_TTL_SECONDS`).
+- CSRF cookie `hikvision_csrf` is not `HttpOnly`, so the future admin UI can copy it into `X-CSRF-Token`. State-changing requests must send that header and a matching `Origin` or `Referer`. A new login rotates the token.
+- Failed logins are limited in process: 10 per address per 15 minutes unless the environment overrides it. Counters are not shared across workers. `TRUST_PROXY=true` in Compose reads `X-Real-IP`.
+- `python -m app.cli.create_admin [email]` prompts for the password and refuses to run when an administrator already exists. It does not accept `--password`.
 
 ### Test result
 
-On 2026-10-10, `pytest -q` reported **33 passed** and 1 Starlette deprecation warning. That run includes the Phase 2A regression tests, the Phase 2B constraint tests, upgrade from `phase2a_core` with existing rows, downgrade back to `phase2a_core`, and the no-administrator orphan-job path.
+On 2026-10-10, `pytest -q` reported **49 passed** and 1 Starlette deprecation warning. That run includes the Phase 2A and Phase 2B regression tests, Phase 3 login, session, CSRF, rate-limit, forwarded-header, account-deletion, and first-administrator tests, and upgrade/downgrade on a disposable database.
 
-The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped `catalog_phase2a_test`, `catalog_phase2a_roundtrip`, `catalog_phase2b_test`, `catalog_phase2b_upgrade`, and `catalog_phase2b_orphan`. The disposable container was removed afterward. The Compose database was not migrated and was not dropped.
+The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped their databases, including `catalog_phase3_test` and `catalog_phase3_upgrade`. The disposable container was removed afterward. The Compose database was not migrated and was not dropped.
 
 ## Known limitations
 
@@ -165,8 +179,10 @@ The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16
 - The audit log is append-only by application convention. The database does not block `UPDATE` or `DELETE`.
 - If a Phase 2A database has source rows pointing at job ids and has no administrator, the new job foreign keys are `NOT VALID` until an operator validates them.
 - Import parsing, staging, preview, and apply are not implemented. The tables can store that workflow; nothing writes them yet.
-- `admin_sessions` and `slug_redirects` are not created.
-- Login, CRUD APIs, admin UI, public catalog routes, and SEO output are not implemented.
+- `slug_redirects` is not created. There is no admin UI, product API, public catalog, or SEO output.
+- Login limits live in one process. Multiple Uvicorn workers do not share them.
+- Production session cookies are `Secure`. The current Nginx listener is HTTP until the client supplies a domain, so browsers will not store those cookies until TLS is added.
+- The CSRF cookie is readable by script on this origin so the admin UI can send the header. The session cookie stays `HttpOnly`.
 - The Compose host-port failure on 5433 was observed on this Windows machine. It is not evidence that the same port fails on the Ahost VPS.
 
 ## Git
@@ -185,6 +201,4 @@ That commit is on `origin/main`. It contains 10 files. The Excel workbooks were 
 
 ## Next task
 
-Phase 3: secure admin authentication and authorization.
-
-`admin_sessions` does not exist yet. Do not implement the Excel importer, admin UI, public catalog pages, or SEO in that task. Do not modify `data/source/`.
+Phase 4: the Excel import workflow from `docs/import-strategy.md`. Identify one or both workbooks, stage rows and assets, build one combined preview, and apply the approved job once. Use the Phase 2B tables and the Phase 3 session, CSRF, and `require_admin` checks. Do not modify `data/source/`.

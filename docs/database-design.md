@@ -275,7 +275,7 @@ Public locale paths 301 `/{locale}/products/{from_slug}` to the current slug. Im
 
 `admin_users`: `id`, unique `email`, `password_hash` (Argon2id, internal), `role` checked as `admin`, `is_active`, `last_login_at`, timestamps.
 
-`admin_sessions`: `id uuid`, `user_id` FK cascade, `token_hash` internal, `expires_at`, `revoked_at`, `created_at`. Index on `token_hash`.
+`admin_sessions`: `id uuid`, `user_id` FK cascade, `token_hash` internal, `csrf_token_hash` internal, `expires_at`, `revoked_at`, `created_at`. Unique index on `token_hash`. The CSRF column stores an HMAC of the login token. The raw token is not stored.
 
 One role is enough for launch. The column exists so a later role does not require a new table.
 

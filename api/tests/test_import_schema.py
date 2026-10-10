@@ -632,7 +632,7 @@ def test_upgrade_preserves_phase2a_rows_and_backfills_job_ids() -> None:
             ("fk_product_source_records_first_job_id", True),
             ("fk_product_source_records_last_job_id", True),
         ]
-        assert version == "phase2b_import"
+        assert version == "phase3_admin_sessions"
         command.downgrade(config, "phase2a_core")
         with engine.connect() as connection:
             names = {
