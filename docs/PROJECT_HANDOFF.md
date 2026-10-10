@@ -197,8 +197,12 @@ Handoff commit for that checkpoint: `2473d4b6a5d9f232add8cd69d1b23e660f15f13e`
 
 Phase 2B commit: `af850e122c00c2f8a747ea78088daa0ce4dd08dd` — `Add import infrastructure schema`
 
-That commit is on `origin/main`. It contains 10 files. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`. This handoff note was added after that push.
+Handoff commit for that checkpoint: `8703918509ebb9b1d62a10582c8faaec16496fbe`
+
+Phase 3 commit: `1a1e294ded5ea3fda4e4de3212cec18e1dac73f1` — `Add secure admin authentication and sessions`
+
+That commit is on `origin/main`. It contains 25 files. The Phase 2A and Phase 2B migration files were not changed. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`. This handoff note was added after that push.
 
 ## Next task
 
-Phase 4: the Excel import workflow from `docs/import-strategy.md`. Identify one or both workbooks, stage rows and assets, build one combined preview, and apply the approved job once. Use the Phase 2B tables and the Phase 3 session, CSRF, and `require_admin` checks. Do not modify `data/source/`.
+Phase 4: the Excel import workflow from `docs/import-strategy.md`. Identify one or both workbooks, stage rows and assets, build one combined preview, and apply the approved job once. Use the Phase 2B tables and the Phase 3 session, CSRF, `require_admin` reads, and `require_admin_write` writes. Do not modify `data/source/`.
