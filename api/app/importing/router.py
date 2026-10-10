@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import secrets
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.auth.dependencies import get_db, get_settings_from_request, require_admin, require_admin_write
 from app.config import Settings
 from app.importing.apply import ApplyError, apply_job, mark_job_failed
 from app.importing.stage import SourceInput, StagingError, stage_import
-from app.models import AdminUser, ImportAsset, ImportFile, ImportJob, ImportRow
+from app.models import AdminUser, Brand, Category, ImportAsset, ImportFile, ImportJob, ImportRow, Product
 
 router = APIRouter(prefix="/api/admin/imports", tags=["imports"])
 _MAX_FILES = 2
@@ -132,6 +133,27 @@ def create_import(
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+@router.get("")
+def list_imports(
+    _: AdminUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    jobs = db.scalars(select(ImportJob).order_by(ImportJob.id.desc()).limit(50)).all()
+    return {
+        "jobs": [
+            {
+                "id": job.id,
+                "status": job.status,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "replace_prices": job.replace_prices,
+                "publish_new_products": job.publish_new_products,
+                "error_message": job.error_message,
+            }
+            for job in jobs
+        ]
+    }
+
+
 @router.get("/{job_id}")
 def read_import(
     job_id: int,
@@ -175,11 +197,12 @@ def read_rows(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
+    current = _current_by_product(db, [row.matched_product_id for row in rows])
     return {
         "page": page,
         "page_size": page_size,
         "total": total,
-        "rows": [_public_row(row) for row in rows],
+        "rows": [_public_row(row, current.get(row.matched_product_id or 0)) for row in rows],
     }
 
 
@@ -203,6 +226,7 @@ def read_assets(
         .limit(page_size)
     ).all()
     excluded = set((job.summary or {}).get("excluded_asset_ids") or [])
+    anchors = _anchor_models(db, assets)
     return {
         "page": page,
         "page_size": page_size,
@@ -217,6 +241,7 @@ def read_assets(
                 "anchor_col": asset.anchor_col,
                 "link_status": asset.link_status,
                 "excluded": asset.id in excluded,
+                "anchor_model": anchors.get((asset.import_file_id, asset.worksheet or "", asset.anchor_row or 0)),
             }
             for asset in assets
         ],
@@ -261,7 +286,8 @@ def resolve_row(
     row.proposal = proposal
     flag_modified(row, "proposal")
     db.commit()
-    return _public_row(row)
+    current = _current_by_product(db, [row.matched_product_id])
+    return _public_row(row, current.get(row.matched_product_id or 0))
 
 
 @router.post("/{job_id}/assets/{asset_id}/exclusion")
@@ -358,7 +384,7 @@ def _asset_in_job(db: Session, job_id: int, asset_id: int) -> ImportAsset:
     return asset
 
 
-def _public_row(row: ImportRow) -> dict[str, object]:
+def _public_row(row: ImportRow, current: dict[str, object] | None = None) -> dict[str, object]:
     return {
         "id": row.id,
         "worksheet_name": row.worksheet_name,
@@ -369,8 +395,81 @@ def _public_row(row: ImportRow) -> dict[str, object]:
         "matched_product_id": row.matched_product_id,
         "messages": row.messages,
         "proposal": row.proposal,
+        "current": current,
         "applied": row.applied,
     }
+
+
+def _current_by_product(db: Session, product_ids: list[int | None]) -> dict[int, dict[str, object]]:
+    ids = [product_id for product_id in product_ids if product_id is not None]
+    if not ids:
+        return {}
+    products = db.scalars(
+        select(Product)
+        .where(Product.id.in_(ids))
+        .options(
+            selectinload(Product.translations),
+            selectinload(Product.brand).selectinload(Brand.translations),
+            selectinload(Product.category).selectinload(Category.translations),
+        )
+    ).all()
+    return {product.id: _current_public(product) for product in products}
+
+
+def _current_public(product: Product) -> dict[str, object]:
+    description = next((item for item in product.translations if item.locale == "ru"), None)
+    return {
+        "model_display": product.model_display,
+        "option_label": product.option_label,
+        "brand": _named(product.brand.translations) if product.brand is not None else None,
+        "category": _named(product.category.translations) if product.category is not None else None,
+        "description": description.description if description is not None else None,
+        "public_price_status": product.public_price_status,
+        "public_price_amount": _money(product.public_price_amount),
+        "public_currency": product.public_currency,
+        "locks": {
+            "model_display": product.model_locked,
+            "option_label": product.option_locked,
+            "brand": product.brand_locked,
+            "category": product.category_locked,
+            "public_price": product.price_locked,
+            "description": bool(description.description_locked) if description is not None else False,
+        },
+    }
+
+
+def _anchor_models(db: Session, assets: list[ImportAsset]) -> dict[tuple[int, str, int], str | None]:
+    clauses = [
+        and_(
+            ImportRow.import_file_id == asset.import_file_id,
+            ImportRow.worksheet_name == asset.worksheet,
+            ImportRow.source_row == asset.anchor_row,
+        )
+        for asset in assets
+        if asset.worksheet and asset.anchor_row is not None
+    ]
+    if not clauses:
+        return {}
+    rows = db.scalars(select(ImportRow).where(or_(*clauses))).all()
+    found: dict[tuple[int, str, int], str | None] = {}
+    for row in rows:
+        model = (row.proposal or {}).get("model_display")
+        found[(row.import_file_id, row.worksheet_name, row.source_row)] = model if isinstance(model, str) else None
+    return found
+
+
+def _named(translations: list[object]) -> str | None:
+    for item in translations:
+        if getattr(item, "locale", None) == "ru":
+            name = getattr(item, "name", None)
+            return name if isinstance(name, str) else None
+    return None
+
+
+def _money(value: Decimal | None) -> str | None:
+    if value is None:
+        return None
+    return f"{value.quantize(Decimal('0.01'))}"
 
 
 def _store_upload(upload: UploadFile, directory: Path, limit: int) -> tuple[str, Path]:

@@ -23,6 +23,9 @@ SESSION_COOKIE_NAME = "hikvision_session"
 CSRF_COOKIE_NAME = "hikvision_csrf"
 CSRF_HEADER_NAME = "x-csrf-token"
 COOKIE_PATH = "/api"
+# The session cookie stays on /api and HttpOnly. The CSRF cookie is readable
+# by the admin UI, which is served outside /api, so its path is the site root.
+CSRF_COOKIE_PATH = "/"
 _NO_STORE = "no-store"
 
 
@@ -86,7 +89,7 @@ def set_auth_cookies(response: Response, settings: Settings, session_token: str,
         httponly=False,
         secure=settings.cookie_secure(),
         samesite="lax",
-        path=COOKIE_PATH,
+        path=CSRF_COOKIE_PATH,
     )
     response.headers["Cache-Control"] = _NO_STORE
 
@@ -101,7 +104,7 @@ def clear_auth_cookies(response: Response, settings: Settings) -> None:
     )
     response.delete_cookie(
         key=CSRF_COOKIE_NAME,
-        path=COOKIE_PATH,
+        path=CSRF_COOKIE_PATH,
         secure=settings.cookie_secure(),
         httponly=False,
         samesite="lax",

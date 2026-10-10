@@ -258,6 +258,13 @@ def test_preview_pagination_and_row_ownership(client: TestClient, engine, tmp_pa
     assert page.status_code == 200
     assert page.json()["total"] > 1
     assert len(page.json()["rows"]) == 1
+    assert "proposal" in page.json()["rows"][0]
+    assert "current" in page.json()["rows"][0]
+    assets = client.get(f"/api/admin/imports/{job_id}/assets", params={"page": 1, "page_size": 1}, headers=ORIGIN)
+    assert assets.status_code == 200
+    assert assets.json()["page"] == 1
+    assert "total" in assets.json()
+    assert len(assets.json()["assets"]) <= 1
     other = _upload(client, headers, path)
     foreign_row = page.json()["rows"][0]["id"]
     crossed = client.patch(

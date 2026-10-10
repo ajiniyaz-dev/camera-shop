@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 
 from app.auth.rate_limit import LoginRateLimiter
 from app.auth.router import router as auth_router
+from app.catalog.router import router as catalog_router
 from app.importing.router import router as import_router
 from app.config import Settings, get_settings
 from app.db import create_db_engine, create_session_factory
@@ -37,6 +38,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(import_router)
+    app.include_router(catalog_router)
 
     @app.exception_handler(HTTPException)
     async def auth_http_errors(request: Request, exc: HTTPException) -> JSONResponse:

@@ -62,7 +62,7 @@ Do not re-analyze the workbooks unless a specification detail cannot be implemen
 
 ## Excel import rules
 
-Parsing, staging, authenticated upload, preview, conflict resolution, and apply are implemented. There is no admin UI. One import job may contain the Hikvision file, the EZVIZ file, or both.
+Parsing, staging, authenticated upload, preview, conflict resolution, and apply are implemented. The admin review screen uses those routes and does not contain a second importer. One import job may contain the Hikvision file, the EZVIZ file, or both.
 
 - Identify each file by headers and sheet structure. The filename is evidence, not proof.
 - Never write one source’s rows into the other source.
@@ -202,11 +202,70 @@ A possible match stays `pending` and blocks apply. Its field differences and loc
 
 Apply locks the job row, writes only included valid rows, and commits the catalog changes with status `applied`, `approved_by`, and `applied_at` in one database transaction. New products start `in_stock`. `publish_new_products` chooses `published` or `draft` for new products only. Slugs are assigned once. USD amounts use two decimal places. Discount notes stay internal. Image rows point at checksum objects written during staging. A failed database transaction does not delete a checksum that another job or product might share. Nginx serves `/media/objects/` only.
 
+### Phase 5
+
+Verified by `api/app/catalog/router.py`, the admin routes under `web/src/app/admin/`, and the checks below. No new Alembic revision. The Phase 2A, Phase 2B, and Phase 3 migration files were not rewritten.
+
+The admin UI is mounted at `/admin` and is `noindex`. Public `/ru`, `/uz`, and `/en` catalog routes are not part of this phase. The public page remains the Phase 1 placeholder. Russian is the default admin language. Uzbek Latin and English are switched with `POST /admin/locale`, which sets the non-HttpOnly cookie `hikvision_ui_locale` (path `/`) and redirects only to a path that starts with `/admin`. Switching language is a full navigation, so unsaved form text is discarded.
+
+Authentication stays on the Phase 3 session. `hikvision_session` remains `HttpOnly`, `SameSite=Lax`, path `/api`. `hikvision_csrf` is not `HttpOnly` and its path is `/`, so script on `/admin` can copy it into `X-CSRF-Token`. Every catalog and import write uses `require_admin_write`. Reads use `require_admin`. The browser client does not store the session in `localStorage` or `sessionStorage`. A 401 from an admin request sends the browser to `/admin/login`. The Next.js layout asks `GET /api/auth/me` before showing the panel; the API remains the authorization check.
+
+Screens:
+
+- `/admin/login` — email and password
+- `/admin` — dashboard counts from `GET /api/admin/dashboard`
+- `/admin/products`, `/admin/products/new`, `/admin/products/[id]` — list, search, brand and category filters, sort, pagination, create, edit, archive, specifications, images
+- `/admin/brands` and `/admin/categories` — create and edit, including translations, brand description, and category parent
+- `/admin/imports` and `/admin/imports/[id]` — upload, preview, row review, asset pages, apply, reject
+- `/admin/profile` — the single company profile
+
+Catalog routes, all under `/api/admin`:
+
+- `GET /dashboard`
+- `GET` and `POST /products`; `GET` and `PATCH /products/{id}`; `POST /products/{id}/archive` with `{"confirm": true}`
+- `POST /products/{id}/images`; `PATCH` and `DELETE /products/{id}/images/{image_id}`
+- `GET` and `POST /brands`; `PATCH /brands/{id}`
+- `GET` and `POST /categories`; `PATCH /categories/{id}`
+- `GET` and `PATCH /profile`
+
+Products are archived, not hard-deleted. Brands and categories have no delete route. A manual product starts as `draft`, public price `on_request` with a null amount, and stock `in_stock`. A numeric price requires a non-negative USD amount with at most two decimal places. `on_request` rejects a supplied amount. Stock can change without changing the price. The first uploaded image is primary. Another image can be marked primary. Deleting an image removes the row and promotes another primary when needed; it does not delete the stored file. Supplied manual fields are locked. A later edit locks a field only when that field changes. Audit actions include `product_created`, `product_updated`, `product_price_changed`, `product_archived`, `image_added`, `image_updated`, `image_removed`, `brand_created`, `brand_updated`, `category_created`, `category_updated`, and `profile_updated`.
+
+`GET /api/admin/imports` lists recent jobs. Import row responses now include `current` when the row is matched to a product: display model, option, Russian brand and category names, Russian description, public price, and lock flags. Asset responses include `anchor_model` when a staged row shares the file, worksheet, and anchor row. The review screen shows the worksheet, classification, action, resolution, message codes, exclusion, and the incoming price, brand, category, and description. When `field_changes` is present it shows the current value, the incoming value, and the field resolution. A locked public price is called out with both amounts. Choosing `accept_excel` asks for confirmation and names the fields that are still `keep_current`. Conflicts can be kept or excluded; they cannot take `accept_excel`. Apply is offered only while the job is `preview`, and only after the confirmation checkbox. A failed apply, including HTTP 409, leaves the status unchanged. `replace_prices` stays an upload option and does not bypass the row rules.
+
+The asset list requests `page` and `page_size` (the API maximum is 100; the screen uses 20) and shows link status, worksheet, anchor row, and anchor model. Only `linked_high` images that are not excluded are published by apply. Review, unassigned, and shared-candidate images stay staged.
+
+`web/next.config.ts` rewrites `/api/:path*` to `API_INTERNAL_URL` when that variable is set. Next.js development does not serve `/media/objects/`. Production Nginx still serves that prefix.
+
 ### Test result
 
 On 2026-10-10, `pytest -q` from `api/` reported **74 passed** and 1 Starlette deprecation warning. That run includes the Phase 2A, Phase 2B, and Phase 3 regression tests, their upgrade and downgrade checks, the Phase 4A parser and staging tests, the Phase 4B upload, resolution, and apply tests, and the read-only source-workbook check. An earlier run the same day, before the import API existed, reported 64 passed. A review pass then fixed conflict restoration, zip-path rejection, and checksum cleanup; the 74-pass run includes those fixes.
 
 The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped `catalog_phase4b_test`. The disposable container was removed afterward. The Compose database was not migrated and was not dropped.
+
+On 2026-10-10, after the Phase 5 catalog and import-review changes, `pytest -q --tb=short` from `api/` reported **78 passed, 0 failed, 0 skipped, 0 errors**, and the same Starlette deprecation warning. `PHASE2A_ADMIN_URL` pointed at a disposable cluster on `127.0.0.1:55432` whose only databases before the run were `postgres`, `template0`, and `template1`. The suite created and dropped its own named test databases. It did not use the Compose catalog database or the host PostgreSQL service on port 5432. Docker was not running. The later admin incoming-summary line is frontend-only and is covered by the typecheck and production build below, not by another pytest run.
+
+From `web/`, `npm run typecheck` (`tsc --noEmit`) exited 0. `npm run build` exited 0 on Next.js 15.5.27. The build lists `/` as static and every `/admin` route as dynamic. There is no lint script and no frontend test runner. `package.json` was not given either one.
+
+Browser checks used that same disposable cluster, database `catalog_phase5_browser`, API `127.0.0.1:8000`, and Next.js `http://localhost:3000`. The administrator was the test account `admin@example.com`. The Compose catalog was not migrated, imported, or dropped.
+
+Checked in the browser:
+
+- Logged-out visits to `/admin` and `/admin/products` reached `/admin/login`.
+- Login and logout. Logout returned to the login screen.
+- Russian, Uzbek Latin, and English on the signed-in dashboard, with translated navigation.
+- Dashboard counts from the API: 2 products, 1 published, 1 draft, 0 archived, 1 brand, 2 categories, 0 conflicts, 0 invalid files, and the three import jobs with statuses rejected, applied, and rejected.
+- A product was created and edited. Numeric price `92.50` replaced `on_request`. Stock was set to `out_of_stock` without changing that price.
+- One image uploaded as primary, a second image uploaded, primary switched, and one image removed.
+- A brand, a category, and the company profile were saved. The profile phone was a disposable test value and was cleared again. No production contact was invented.
+- A generated Hikvision workbook previewed as an insert. Apply with the confirmation checkbox returned status `applied` and created the product. A second upload of the same workbook, after the imported price was edited to `55.00`, showed a locked-price warning (`numeric 55.00` versus incoming `numeric 40.00 USD`) and a confirmation that named the price field.
+- A generated duplicate-model workbook stayed `preview` after apply and showed `Resolve blocking rows before applying this import.` Two conflict jobs were rejected. An applied job stayed `applied`. A file named like EZVIZ but structured as Hikvision stayed on the upload screen with `The workbook could not be staged.`
+
+Not checked in the browser:
+
+- Paging image assets past the first 100. The generated workbooks contained no images, so both asset pagers stayed on page 1. `GET /api/admin/imports/{id}/assets?page=1&page_size=1` is covered by `api/tests/test_import_api.py`.
+- A job status of `failed`. The review screen has that state; inducing an unexpected apply error in the browser was not done.
+- Clicking product archive. `POST /products/{id}/archive` rejects `confirm: false` and archives with `confirm: true` in `api/tests/test_catalog_admin.py`.
+- Image bytes. The API stored the images and the screen showed the primary label, but Next.js development does not proxy `/media/objects/`.
 
 ## Known limitations
 
@@ -215,12 +274,16 @@ The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16
 - Image rows and import assets accept only `image/png`, `image/jpeg`, and `image/webp`.
 - The audit log is append-only by application convention. The database does not block `UPDATE` or `DELETE`.
 - If a Phase 2A database has source rows pointing at job ids and has no administrator, the new job foreign keys are `NOT VALID` until an operator validates them.
-- Import upload, preview, resolution, and apply exist. There is still no admin UI. A job is not given a separate approved status before apply.
+- Import upload, preview, resolution, and apply exist, and the admin screen uses those routes. A job is not given a separate approved status before apply.
 - Database transactions do not include the filesystem. A failed stage leaves checksum objects in place so a shared hash is not deleted. Unreferenced checksums need a later cleanup that checks `product_images` and `import_assets`. Apply does not delete them.
 - Apply does not leave a job in `applying`. The startup check described for a stuck `applying` job is not used by this path.
 - Hikvision rows whose model and description do not name a verified brand are staged with a null brand. The worksheet name is not used as a brand. The local Hikvision workbook produced 530 `brand_unverified` rows under that rule.
 - Hilook image anchors whose top-left cell is a heading stay `unassigned`. That pass found 20 such anchors. The analysis note of 7 non-product Hilook images is not treated as a reason to attach those images to the next product.
-- `slug_redirects` is not created. There is no admin UI, product API, public catalog, or SEO output.
+- `slug_redirects` is not created. The public catalog and SEO output are not built. Admin catalog routes exist; there is no public product API.
+- Admin pages load their data in the browser after the server layout. They are not fully server-rendered forms.
+- The language switch submits a navigation, so unsaved form text is lost.
+- There are no per-field editor or edited-at columns. Locks and the audit log are the record of a manual change.
+- Products are archived. Brands and categories have no delete route.
 - Login limits live in one process. Multiple Uvicorn workers do not share them.
 - Production session cookies are `Secure`. The current Nginx listener is HTTP until the client supplies a domain, so browsers will not store those cookies until TLS is added.
 - The CSRF cookie is readable by script on this origin so the admin UI can send the header. The session cookie stays `HttpOnly`.
@@ -250,6 +313,8 @@ Phase 3 commit: `1a1e294ded5ea3fda4e4de3212cec18e1dac73f1` — `Add secure admin
 
 That commit is on `origin/main`. It contains 25 files. The Phase 2A and Phase 2B migration files were not changed. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`. This handoff note was added after that push.
 
+Phase 5 commit: recorded in the checkpoint note after this handoff is committed.
+
 ## Next task
 
-Phase 5: admin panel and catalog management. Do not modify `data/source/`.
+Phase 6 — Public Multilingual Product Catalog. Do not modify `data/source/`.

@@ -166,6 +166,8 @@ def test_login_success_sets_cookies_and_hides_the_hash(engine, client: TestClien
     assert "path=/api" in session_cookie.lower()
     assert "secure" not in session_cookie.lower()
     assert "httponly" not in csrf_cookie.lower()
+    assert "path=/" in csrf_cookie.lower()
+    assert "path=/api" not in csrf_cookie.lower()
     with engine.connect() as connection:
         stored = connection.execute(text("SELECT token_hash, csrf_token_hash FROM admin_sessions")).one()
     raw_session = client.cookies.get("hikvision_session")
