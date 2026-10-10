@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     login_rate_limit_window_seconds: int = Field(default=15 * 60, ge=1, le=60 * 60 * 24)
     login_rate_limit_max_keys: int = Field(default=10_000, ge=1, le=1_000_000)
     trust_proxy: bool = False
+    import_max_bytes: int = Field(default=40 * 1024 * 1024, ge=1024, le=40 * 1024 * 1024)
 
     @field_validator("database_url")
     @classmethod

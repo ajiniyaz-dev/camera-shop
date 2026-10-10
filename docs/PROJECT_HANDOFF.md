@@ -62,7 +62,7 @@ Do not re-analyze the workbooks unless a specification detail cannot be implemen
 
 ## Excel import rules
 
-These rules are specified and are not implemented yet. One admin import area. A job may contain the Hikvision file, the EZVIZ file, or both.
+Parsing, staging, authenticated upload, preview, conflict resolution, and apply are implemented. There is no admin UI. One import job may contain the Hikvision file, the EZVIZ file, or both.
 
 - Identify each file by headers and sheet structure. The filename is evidence, not proof.
 - Never write one source’s rows into the other source.
@@ -165,11 +165,48 @@ Verified by `api/app/auth/`, `api/app/cli/create_admin.py`, and Alembic revision
 - Failed logins are limited in process: 10 per address per 15 minutes unless the environment overrides it. Counters are not shared across workers. `TRUST_PROXY=true` in Compose reads `X-Real-IP`.
 - `python -m app.cli.create_admin [email]` prompts for the password and refuses to run when an administrator already exists. It does not accept `--password`.
 
+### Phase 4A
+
+Verified by `api/app/importing/` and `api/tests/test_import_parse.py`. No new Alembic revision. Phase 2A, Phase 2B, and Phase 3 migration files were not rewritten.
+
+`stage_import` parses an existing preview job. It writes `import_files`, `import_rows`, `import_assets`, and `import_jobs.summary`. It does not create HTTP routes, change `products`, publish rows, or set `applied`.
+
+- Hikvision and EZVIZ can be staged separately or together. Columns are found by header text.
+- Blank prices stay `blank` and explicit `По запросу` stays `explicit_on_request`. Both propose public `on_request` with a null amount. Hilook column F stays `internal_note`.
+- EZVIZ prices come from `Цена для дилера`. EZVIZ brand is `EZVIZ`. Hikvision brands come only from model and description text.
+- Repeated models stay separate. The match key includes source, worksheet, normalized model, normalized option, and description SHA-256.
+- Exact keys become `update` or `unchanged`. A unique model/option pair with a different description becomes `possible_match` and stays `pending`. Locked fields default to `keep_current` unless `replace_prices` selects the Excel price. None of those choices are applied in this phase.
+- Images are copied by checksum. Photo-column anchors on a model row are `linked_high`. Other columns are `linked_review`. Non-model anchors are `unassigned`. Merged photo ranges add `shared_candidate` rows without a second file copy.
+- Running the same job again replaces that source’s staged rows and assets.
+- A filename/signature disagreement is stored on the job summary and does not create an `import_files` row until an administrator confirms the source.
+
+A read-only pass of the local workbooks on 2026-10-10 counted 639 model rows, 28 headings, 3 stray rows, 587 numeric prices, 42 explicit request prices, 10 blank prices, and 762 image anchors. The workbook hashes were unchanged. Details and the Hilook heading-anchor difference are in `docs/import-strategy.md`.
+
+### Phase 4B
+
+Verified by `api/app/importing/router.py`, `api/app/importing/apply.py`, and `api/tests/test_import_api.py`. No new Alembic revision. The Phase 2A, Phase 2B, and Phase 3 migration files were not rewritten. The existing `import_jobs` check forbids `approved_by` while status is `preview` or `rejected`, so approval is the apply action itself.
+
+Write routes use `require_admin_write`. Read routes use `require_admin`. Job responses omit workbook storage keys and absolute paths. A staged row proposal can include the relative image object key.
+
+- `POST /api/admin/imports` accepts one or two `.xlsx` files, optional `source_overrides`, `replace_prices` (default false), and `publish_new_products` (default true). `IMPORT_MAX_BYTES` defaults to 41943040 and cannot be set above that ceiling. The minimum accepted setting is 1024. Uploads are streamed into `media/private-uploads/` under a random name, then staged. The temporary directory is removed after the request.
+- `GET /api/admin/imports/{job_id}` returns the combined preview summary and source-file validation.
+- `GET /api/admin/imports/{job_id}/rows` and `GET /api/admin/imports/{job_id}/assets` are paginated. `page_size` is at most 100.
+- `PATCH /api/admin/imports/{job_id}/rows/{row_id}` sets `keep_current`, `accept_excel`, `accept_new`, or `exclude` on a row that belongs to that job.
+- `POST /api/admin/imports/{job_id}/assets/{asset_id}/exclusion` records an asset id in the job summary. There is no excluded column on `import_assets`.
+- `POST /api/admin/imports/{job_id}/apply` with `{"confirm": true}` applies the job once.
+- `POST /api/admin/imports/{job_id}/reject` sets `rejected` from `preview` only.
+
+`preview` can become `applied`, `rejected`, or `failed`. A repeated apply of an `applied` job returns the stored result. A 409 for unresolved rows leaves the job in `preview`. An unexpected apply error rolls the catalog transaction back and then marks the job `failed`. This path does not persist `applying`, so there is no stuck-`applying` recovery step.
+
+A possible match stays `pending` and blocks apply. Its field differences and lock defaults are stored on the row. `accept_excel` is the explicit decision that overwrites locked fields on that row. A conflict cannot choose one Excel value. A row from another job is rejected. A missing workbook does not delete or flag the other source.
+
+Apply locks the job row, writes only included valid rows, and commits the catalog changes with status `applied`, `approved_by`, and `applied_at` in one database transaction. New products start `in_stock`. `publish_new_products` chooses `published` or `draft` for new products only. Slugs are assigned once. USD amounts use two decimal places. Discount notes stay internal. Image rows point at checksum objects written during staging. A failed database transaction does not delete a checksum that another job or product might share. Nginx serves `/media/objects/` only.
+
 ### Test result
 
-On 2026-10-10, `pytest -q` reported **49 passed** and 1 Starlette deprecation warning. That run includes the Phase 2A and Phase 2B regression tests, Phase 3 login, session, CSRF, rate-limit, forwarded-header, account-deletion, and first-administrator tests, and upgrade/downgrade on a disposable database.
+On 2026-10-10, `pytest -q` from `api/` reported **74 passed** and 1 Starlette deprecation warning. That run includes the Phase 2A, Phase 2B, and Phase 3 regression tests, their upgrade and downgrade checks, the Phase 4A parser and staging tests, the Phase 4B upload, resolution, and apply tests, and the read-only source-workbook check. An earlier run the same day, before the import API existed, reported 64 passed. A review pass then fixed conflict restoration, zip-path rejection, and checksum cleanup; the 74-pass run includes those fixes.
 
-The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped their databases, including `catalog_phase3_test` and `catalog_phase3_upgrade`. The disposable container was removed afterward. The Compose database was not migrated and was not dropped.
+The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16 container was published on `127.0.0.1:55432`. The tests created and then dropped `catalog_phase4b_test`. The disposable container was removed afterward. The Compose database was not migrated and was not dropped.
 
 ## Known limitations
 
@@ -178,7 +215,11 @@ The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16
 - Image rows and import assets accept only `image/png`, `image/jpeg`, and `image/webp`.
 - The audit log is append-only by application convention. The database does not block `UPDATE` or `DELETE`.
 - If a Phase 2A database has source rows pointing at job ids and has no administrator, the new job foreign keys are `NOT VALID` until an operator validates them.
-- Import parsing, staging, preview, and apply are not implemented. The tables can store that workflow; nothing writes them yet.
+- Import upload, preview, resolution, and apply exist. There is still no admin UI. A job is not given a separate approved status before apply.
+- Database transactions do not include the filesystem. A failed stage leaves checksum objects in place so a shared hash is not deleted. Unreferenced checksums need a later cleanup that checks `product_images` and `import_assets`. Apply does not delete them.
+- Apply does not leave a job in `applying`. The startup check described for a stuck `applying` job is not used by this path.
+- Hikvision rows whose model and description do not name a verified brand are staged with a null brand. The worksheet name is not used as a brand. The local Hikvision workbook produced 530 `brand_unverified` rows under that rule.
+- Hilook image anchors whose top-left cell is a heading stay `unassigned`. That pass found 20 such anchors. The analysis note of 7 non-product Hilook images is not treated as a reason to attach those images to the next product.
 - `slug_redirects` is not created. There is no admin UI, product API, public catalog, or SEO output.
 - Login limits live in one process. Multiple Uvicorn workers do not share them.
 - Production session cookies are `Secure`. The current Nginx listener is HTTP until the client supplies a domain, so browsers will not store those cookies until TLS is added.
@@ -190,6 +231,8 @@ The tests did not use the Compose `catalog` database. A disposable PostgreSQL 16
 Remote `origin`: `https://github.com/ajiniyaz-dev/camera-shop`
 
 Branch `main` tracks `origin/main`.
+
+Phase 3 checkpoint: `c51f935ef0f051e7f98a5560f9803dedfc7aae5a`. Phase 4A and Phase 4B are the following commit, `Implement Excel import workflow`. The Phase 2A, Phase 2B, and Phase 3 migration files were not changed. The Excel workbooks were not modified and are not part of the commit.
 
 Phase 1 and Phase 2A commit: `dfe902cd7d9fa65b7c8092b2efd82ae53a645a88` — `Complete project foundation and core database schema`
 
@@ -205,4 +248,4 @@ That commit is on `origin/main`. It contains 25 files. The Phase 2A and Phase 2B
 
 ## Next task
 
-Phase 4: the Excel import workflow from `docs/import-strategy.md`. Identify one or both workbooks, stage rows and assets, build one combined preview, and apply the approved job once. Use the Phase 2B tables and the Phase 3 session, CSRF, `require_admin` reads, and `require_admin_write` writes. Do not modify `data/source/`.
+Phase 5: admin panel and catalog management. Do not start it until this Phase 4 checkpoint is published. Do not modify `data/source/`.

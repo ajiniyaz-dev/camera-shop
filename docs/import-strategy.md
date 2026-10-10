@@ -168,9 +168,9 @@ The administrator does not approve every field one by one. Defaults cover the co
 
 **Apply approved changes** is one action for every included file in the job.
 
-1. Reject the call unless status is `preview`.
-2. Begin one database transaction.
-3. Set status to `applying` and set `approved_by`.
+1. Reject the call unless status is `preview`. Phase 4B also returns the stored result when status is already `applied`.
+2. Begin one database transaction and lock the job row.
+3. Phase 4B does not persist `applying`. Approval is recorded on the same commit that sets `applied`, because `approved_by` is forbidden while the job is still `preview`. The `applying` value remains in the schema and is unused by this path.
 4. For each included valid file, and for no other source:
    - Insert accepted brands and categories.
    - Insert new products, Russian translations, public USD prices, and source records. Locks are false. Stock is `in_stock`. Slug is allocated once. `catalog_status` follows the job’s publish choice for new rows (default published for a first load, visible in the preview).
@@ -180,7 +180,7 @@ The administrator does not approve every field one by one. Defaults cover the co
 5. Write the summary and an audit-log row.
 6. Commit and set status `applied`.
 
-Any error rolls the transaction back, sets `failed`, and stores `error_message`. Live catalog tables match the pre-apply state.
+An unexpected error rolls the transaction back and then sets `failed` with a generic `error_message`. Live catalog tables match the pre-apply state. A blocking validation or unresolved conflict returns an error and leaves the job in `preview` so it can be corrected.
 
 The transaction is the whole apply, not one product at a time.
 
@@ -243,3 +243,91 @@ Do not mark the job successful when apply rolled back. A job can be `applied` wh
 - Do not treat a missing file as deletion.
 - Do not execute macros or write back into the workbook.
 - Do not require a person or a model to interpret each cell. The rules above are the classifier. Uncertain identity and ambiguous images are flagged by those rules, not guessed.
+
+## Phase 4A staging behavior
+
+Phase 4A parses and stages. It does not upload over HTTP, preview in a UI, approve, or apply. Live `products` rows are not updated.
+
+`stage_import` accepts an existing `preview` job and one or two workbook paths. Parsing, image extraction, matching, and database writes are separate functions. The caller commits. A failed flush deletes partial files and that job’s workbook copy. It does not delete checksum objects, because another job or product may share the hash, including a job that has not committed yet.
+
+Identification follows the signature rules above. A filename that disagrees with the signature is reported on `import_jobs.summary.rejected_files` and does not create an `import_files` row, because storing it under either source would choose a side before confirmation. `admin_confirmed` with the required columns stages that declared source. An unreadable container is reported the same way and is not parsed.
+
+A sheet without the required headers is an error on that sheet. Other sheets in the same workbook are still staged. Rows after the last value or image anchor are counted as `trailing_empty_rows` and are not inserted. Blank rows inside that span are staged as `blank`.
+
+The match key is the unit-separator join of source code, worksheet name, case-folded model, case-folded option, and the SHA-256 of the trimmed description. Unicode dashes are folded to `-` in that key only. The display model keeps the original dash. Staging the same job again deletes that source’s staged rows and assets and inserts the new result. It does not insert a second file for the same source and does not write the live catalog.
+
+Brand for an EZVIZ file is `EZVIZ`. A Hikvision brand is set only when the model or description text contains HiLook, Hikvision, Seagate, WD, Andel, or Cougar. The worksheet name is not a brand. No match, or more than one match, leaves the brand null and adds `brand_unverified` or `brand_ambiguous`.
+
+Image bytes are read from the xlsx package. They are not decoded through Pillow, so the stored checksum is the embedded file. PNG, JPEG, and WebP are accepted after a content check. The same checksum is written once under `objects/{sha256[0:2]}/{sha256}.{ext}`. Anchors on a heading or other non-model row stay `unassigned` even when the drawing extends into the next row. A merged `Фото` range adds `shared_candidate` asset rows for the extra model rows and does not copy the file.
+
+On 2026-10-10 a read-only pass of the local workbooks matched the measured population: 639 model rows, 28 Hilook headings, 3 stray rows, 587 numeric prices, 42 explicit `По запросу` cells, and 10 blank prices. Embedded image anchors totaled 762. Hilook has 20 anchors whose top-left cell is a heading, so those stay unassigned; the analysis note of 7 non-product Hilook images is not reproduced by the top-left rule. Both workbook SHA-256 values were unchanged by the pass. The pass did not write the catalog.
+
+## Phase 4B upload, review, and apply
+
+Phase 4B adds the HTTP workflow on top of `stage_import` and does not add a migration.
+
+### Endpoints
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/api/admin/imports` | `require_admin_write` | Upload one or both workbooks and stage one preview job |
+| `GET` | `/api/admin/imports/{job_id}` | `require_admin` | Combined preview, file validation, and rejected uploads |
+| `GET` | `/api/admin/imports/{job_id}/rows` | `require_admin` | Paginated staged rows |
+| `GET` | `/api/admin/imports/{job_id}/assets` | `require_admin` | Paginated staged images |
+| `PATCH` | `/api/admin/imports/{job_id}/rows/{row_id}` | `require_admin_write` | Resolve or exclude one row in that job |
+| `POST` | `/api/admin/imports/{job_id}/assets/{asset_id}/exclusion` | `require_admin_write` | Exclude or restore one staged image |
+| `POST` | `/api/admin/imports/{job_id}/apply` | `require_admin_write` | Apply the job once when `confirm` is true |
+| `POST` | `/api/admin/imports/{job_id}/reject` | `require_admin_write` | Reject a preview job |
+
+`page` starts at 1. `page_size` defaults to 50 and cannot exceed 100. Row lists can be filtered by `source_code` and `action`.
+
+### Upload limits and storage
+
+`IMPORT_MAX_BYTES` defaults to 41943040. Settings reject a value below 1024 or above 41943040. Each request accepts at most two files. Bytes are counted while streaming. A file over the limit is rejected with 413 and is not parsed. The client filename is stored only as a display name. The temporary file uses a random name under `media/private-uploads/` and is deleted when the request finishes.
+
+The workbook is identified from its sheets and headers. A filename that disagrees with that signature is returned in `rejected_files` with code `filename_signature_disagreement` and is not staged. Sending `source_overrides` of `hikvision` or `ezviz` for that file is the administrator confirmation. Macros are not executed. Zip entries that escape the workbook are rejected by the Phase 4A container check. Responses do not include server paths or parser tracebacks.
+
+A staged workbook copy is `imports/{job_id}/{source}.xlsx`. Image bytes are `objects/{sha256[0:2]}/{sha256}.{ext}`. Nginx publishes `/media/objects/` only. `/media/imports/` and `/media/private-uploads/` return 404. The running Compose Nginx process is not reloaded by this change; the file in `deploy/nginx.conf` is what a later recreate will use.
+
+### State transitions
+
+- `preview` to `applied`: apply succeeded. `approved_by` and `applied_at` are set in that commit.
+- `preview` to `rejected`: reject. `approved_by` stays null.
+- `preview` to `failed`: an unexpected error during apply. The catalog transaction is rolled back first, then the failure is saved. `error_message` is the generic sentence `The import could not be applied.`
+- `applied` to `applied`: a repeated apply returns the stored summary and does not insert again.
+- `rejected` and `failed` cannot be edited or applied.
+- Unresolved blocking rows return 409 and leave the job in `preview`.
+
+Blocking rows are invalid rows that are not excluded, and `insert`, `update`, `possible_match`, or `conflict` rows whose resolution is still `pending`. An accepted update or possible match without a matched product is also blocking. Parsing does not approve the job. New rows default to `accept_new`, and unlocked exact matches default to `accept_excel`, but those rows are written only when an administrator posts apply.
+
+### Conflict resolution
+
+A row id is accepted only when its file belongs to the job in the URL. `keep_current` preserves the live values. `accept_excel` changes every `keep_current` field resolution on that row to `accept_excel`; that is the explicit override of a locked price, description, option, brand, category, or display model. `exclude` removes the row from apply and can be reversed while the job is still `preview`. A conflict cannot be resolved with `accept_excel` or `accept_new`. Heading, blank, and stray rows cannot be turned into products.
+
+Possible matches stay `pending`. The matcher records the same field differences and lock defaults as an update, then forces the action back to `possible_match`. Choosing `keep_current` does not change the product and does not mark it absent. Choosing `accept_excel` updates the matched product and replaces its match key. Similar model names are not merged.
+
+Asset exclusion is a list of asset ids on `import_jobs.summary.excluded_asset_ids`. Re-staging the same job replaces the summary, so exclusions belong to the job created by the upload.
+
+### Catalog application and retries
+
+Apply takes `SELECT … FOR UPDATE` on the job. A second request waits. If the first commit set `applied`, the second returns that result. If the first rolled back and marked `failed`, the second does not apply.
+
+Only included, valid, non-pending rows are written. Inserts create the product, the Russian source translation, and the source record. Updates write a field only when its resolution accepts Excel. Hidden public prices are not overwritten. Stock, slug, product kind, catalog status of existing products, and Uzbek or English translations are not changed. New products use `in_stock`. `publish_new_products` selects `published` or `draft` for those new products. `replace_prices` is honored only when staging already marked the locked price `accept_excel` because the job option was set before preview.
+
+Numeric public amounts are quantized to `0.01` USD. Blank and explicit `По запросу` both become public `on_request` with a null amount, and the source kind stays `blank` or `explicit_on_request`. Source snapshots, `last_job_id`, and `last_seen_at` are refreshed for touched products. Products of an included source that were not touched are marked `absent_from_latest` and are not archived or deleted. A source that was not in the job is not examined.
+
+Only `linked_high` images that are not excluded, whose file exists under the media root, and whose checksum is not already on the product are inserted. The first of those is primary only when the product has no primary image. Missing image files are skipped. Existing product images are not deleted.
+
+The audit row is `import_applied`. Its detail contains the result counts and the absent-product count. It does not contain passwords, tokens, or paths.
+
+### Filesystem and database consistency
+
+PostgreSQL and the disk are not one transaction.
+
+- Checksum objects are written during staging, before any catalog reference is committed.
+- The same checksum is not overwritten.
+- Apply only inserts database rows that point at those keys.
+- If apply rolls back, the catalog has no new references. The checksum files stay, because another job or product may share them.
+- Staging deletes partial files and that job’s private workbook copy. It does not delete checksum objects. A later cleanup may remove a checksum only when neither `product_images` nor `import_assets` references it.
+- An upload that stages no source removes that job’s `imports/{job_id}/` directory after the database rollback. Unreferenced checksums can remain and must be removed only by a later cleanup that checks `product_images` and `import_assets`.
+- A retry after a timeout is safe when the first request committed: the job is `applied` and the second request does not create another product or image. If the first request never committed, the job is still `preview` or has been marked `failed`, and no catalog rows from that attempt remain.

@@ -1,4 +1,4 @@
-"""Staged import jobs. Parsing and apply are not implemented here.
+"""Staged import jobs. Parsing writes these tables; applying a job is later work.
 
 Job status uses the documented values. They cover the requested lifecycle:
 

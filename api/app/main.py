@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 
 from app.auth.rate_limit import LoginRateLimiter
 from app.auth.router import router as auth_router
+from app.importing.router import router as import_router
 from app.config import Settings, get_settings
 from app.db import create_db_engine, create_session_factory
 from app.health import router as health_router
@@ -35,11 +36,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     )
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(import_router)
 
     @app.exception_handler(HTTPException)
     async def auth_http_errors(request: Request, exc: HTTPException) -> JSONResponse:
         headers = dict(exc.headers or {})
-        if request.url.path.startswith("/api/auth"):
+        if request.url.path.startswith("/api/auth") or request.url.path.startswith("/api/admin"):
             headers["Cache-Control"] = "no-store"
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=headers)
 
