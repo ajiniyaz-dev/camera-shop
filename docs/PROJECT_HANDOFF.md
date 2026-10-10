@@ -232,7 +232,11 @@ Remote `origin`: `https://github.com/ajiniyaz-dev/camera-shop`
 
 Branch `main` tracks `origin/main`.
 
-Phase 3 checkpoint: `c51f935ef0f051e7f98a5560f9803dedfc7aae5a`. Phase 4A and Phase 4B are the following commit, `Implement Excel import workflow`. The Phase 2A, Phase 2B, and Phase 3 migration files were not changed. The Excel workbooks were not modified and are not part of the commit.
+Phase 3 checkpoint: `c51f935ef0f051e7f98a5560f9803dedfc7aae5a`.
+
+Phase 4 commit: `376b87185a594cbb1f77bdbdf83b0c18e4f7eb5c` — `Implement Excel import workflow`
+
+That commit is on `origin/main`. It contains 21 files. The Phase 2A, Phase 2B, and Phase 3 migration files were not changed. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`.
 
 Phase 1 and Phase 2A commit: `dfe902cd7d9fa65b7c8092b2efd82ae53a645a88` — `Complete project foundation and core database schema`
 
@@ -248,4 +252,4 @@ That commit is on `origin/main`. It contains 25 files. The Phase 2A and Phase 2B
 
 ## Next task
 
-Phase 5: admin panel and catalog management. Do not start it until this Phase 4 checkpoint is published. Do not modify `data/source/`.
+Phase 5: admin panel and catalog management. Do not modify `data/source/`.
