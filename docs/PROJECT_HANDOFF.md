@@ -313,7 +313,9 @@ Phase 3 commit: `1a1e294ded5ea3fda4e4de3212cec18e1dac73f1` — `Add secure admin
 
 That commit is on `origin/main`. It contains 25 files. The Phase 2A and Phase 2B migration files were not changed. The Excel workbooks were not modified and are not part of the commit. SHA-256: Hikvision `8B3CDE12879215CD2E28CCB9ABFACF61F305BA9320B400FF50ACB5403463FCAC`, EZVIZ `C4C3D2D4A3A36FB591C58B26FC21274E27E13D2150CEDEEAC0161C4D9566CDA5`. This handoff note was added after that push.
 
-Phase 5 commit: recorded in the checkpoint note after this handoff is committed.
+Phase 5 commit: `a8614a03470995633ce5d8cc0dc84923782b9481` — `Complete admin panel and catalog management`
+
+That commit is the parent of this handoff note. It contains 29 files. No Alembic revision was added. The Excel workbooks were not modified and are not part of the commit.
 
 ## Next task
 
