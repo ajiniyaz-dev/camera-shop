@@ -277,6 +277,57 @@ Audit rows on that disposable database included `product_created`, `image_added`
 
 The earlier browser session had already covered language switching, dashboard counts, numeric versus `on_request` editing, stock independent of price, brand and category editing, profile save and clear, and the locked-price confirmation. Those screens were not rebuilt in this pass. Logout was not repeated.
 
+### Phase 6
+
+The public catalog is a server-rendered Next.js App Router site in Russian, Uzbek Latin, and English. `/` redirects to `/ru`. Unknown locales use the root not-found page. Administrator routes stay under `/admin` and are not linked from the public header.
+
+Public pages:
+
+- `/{locale}` homepage: company name, search, published category cards with subtree product counts, up to eight newest published products, and only the company fields that are filled in
+- `/{locale}/catalog` and `/{locale}/products`: the same listing
+- `/{locale}/search?q=`
+- `/{locale}/categories`, `/{locale}/categories/{slug}` for a root, and `/{locale}/categories/{slug}/{child}` for a child
+- `/{locale}/products/{product-slug}`
+- `/{locale}/brands/{brand-slug}`
+- `/{locale}/contact`
+
+The language switch keeps the current path and query. Interface copy is in `web/src/lib/public-i18n.ts`. A missing Uzbek or English product, category, brand, or specification value falls back to the Russian text and the page says that the Russian original is shown. A missing name uses `model_display` and is not labeled as a translation. There is no frontend test runner and no lint script in `web/package.json`.
+
+Public API, prefix `/api/public`, no administrator session:
+
+- `GET /home`, `GET /company`, `GET /categories`, `GET /categories/{slug}`, `GET /categories/{parent}/{slug}`
+- `GET /brands/{slug}`
+- `GET /products` with `locale`, `q`, `category`, `parent`, `brand`, `min_price`, `max_price`, `sort`, `page`, `page_size`
+- `GET /products/{slug}`
+
+Responses are explicit dictionaries. They do not include source rows, locks, audit data, dealer column names, import notes, private object keys, checksums, or SEO fields. Publication filtering is in the query: `catalog_status = published` and `deleted_at IS NULL`. Draft, archived, and deleted products return 404 from the detail route. An unpublished brand or category is omitted from the product; the product stays listable. Images are `high` or `confirmed` only, primary first, at `/media/{object_key}`.
+
+Search is bounded `ILIKE` on the display model, normalized model, option, and translation name or description. It does not use `search_vector`. Category filters include published descendants. Price bounds apply only to `numeric` USD rows, so `on_request` and `hidden` are excluded when a bound is set. `hidden` is returned without an amount. Sort values are `model`, `name`, `newest`, `price_asc`, and `price_desc`, with the id as a tie-break. Numeric price sorts put null amounts last and do not treat them as zero. `page` is at least 1 and `page_size` is 1–48, default 24. Public responses send `Cache-Control: no-store`.
+
+On-request labels stay in `api/app/price_labels.py`: Russian `По запросу`, Uzbek `So'rov asosida`, English `On request`. Numeric prices render as `$` plus the USD amount. Out of stock is shown only when `stock_status` is `out_of_stock`. In stock shows no badge and no quantity.
+
+No Alembic revision was added.
+
+Verification on this machine:
+
+- `pytest -q --tb=short` from `api/`: 83 passed, 1 warning (`StarletteDeprecationWarning` for httpx). The database was a temporary PostgreSQL 18 cluster on `127.0.0.1:55432`, database `catalog_phase6_test`, created and dropped by the test fixture. `PHASE2A_ADMIN_URL` pointed at that cluster. The Compose catalog and the host PostgreSQL service on port 5432 were not migrated or dropped.
+- `npm run typecheck` passed.
+- `npm run build` passed. Public routes are dynamic. There is no lint script.
+- Browser checks used disposable database `catalog_phase6_browser` on the same temporary cluster. Docker and Nginx were not running. Next.js development does not serve `/media/objects/`. A local stand-in on `127.0.0.1:18080` forwarded the site to Next and the API, and served only files under `media/objects/`. Port 8080 could not be bound on this Windows machine. A private `/media/` path returned 404. Product images loaded with `naturalWidth` 1 from `/media/objects/bb/primary.png` and `/media/objects/cc/second.png`. A `needs_review` image was not shown.
+
+Browser workflows that completed:
+
+- Russian, Uzbek, and English homepages, including the language switch from `/ru` to `/en` and a direct `/uz/products/cam-pub` URL.
+- Category cards, the empty category `Пустая полка` with count 0, and `/ru/categories/cameras/domes` showing only the child product.
+- Header search for `ITEM-01` returned one result. Catalog filters `min_price=20` and `sort=price_asc` returned seven numeric prices from `$20.00` through `$92.50`, with on-request and hidden rows excluded.
+- Page 2 of the catalog showed one product and Previous returned to 24 products on page 1.
+- Product detail showed the English name, `$92.50`, description, Russian specification with the fallback label, and two images. The Uzbek on-request product showed `So'rov asosida` and `Mavjud emas`, and no zero price.
+- `/ru/products/draft-secret` rendered the not-found state. Direct API checks returned 404 for the draft and archived slugs.
+- At a 390px width the menu control was visible and the product card fit the viewport. At 768px the desktop navigation was shown.
+- Admin login, `/admin/products`, and `/admin/imports` still opened. The product list still showed the draft and the archived rows that the public catalog hides.
+
+A segment `loading.tsx` made `notFound()` respond with HTTP 200, so the locale segment does not use one. Invalid products and categories still render the not-found copy, and the product and archived routes returned HTTP 404 when requested from Next directly.
+
 ## Known limitations
 
 - `product_translations.search_vector` exists and is not filled by a trigger or by application code.
@@ -289,7 +340,8 @@ The earlier browser session had already covered language switching, dashboard co
 - Apply does not leave a job in `applying`. The startup check described for a stuck `applying` job is not used by this path.
 - Hikvision rows whose model and description do not name a verified brand are staged with a null brand. The worksheet name is not used as a brand. The local Hikvision workbook produced 530 `brand_unverified` rows under that rule.
 - Hilook image anchors whose top-left cell is a heading stay `unassigned`. That pass found 20 such anchors. The analysis note of 7 non-product Hilook images is not treated as a reason to attach those images to the next product.
-- `slug_redirects` is not created. The public catalog and SEO output are not built. Admin catalog routes exist; there is no public product API.
+- `slug_redirects` is not created. Changing a slug does not redirect the old URL.
+- Canonical URLs, hreflang, sitemap, robots.txt, Open Graph, and structured data are not implemented. That is Phase 7.
 - Admin pages load their data in the browser after the server layout. They are not fully server-rendered forms.
 - The language switch submits a navigation, so unsaved form text is lost.
 - There are no per-field editor or edited-at columns. Locks and the audit log are the record of a manual change.
@@ -338,4 +390,4 @@ That commit is the parent of this note. It changes the import review screen and 
 
 ## Next task
 
-Phase 6 — Public Multilingual Product Catalog. Do not modify `data/source/`.
+Phase 7 — SEO implementation. Do not modify `data/source/`. Do not invent a domain, phone, email, address, or social URL. Canonical URLs, hreflang, sitemap, robots.txt, Open Graph, and structured data are the next work. Do not add a cart, checkout, payments, customer accounts, or orders.

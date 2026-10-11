@@ -9,6 +9,7 @@ from app.auth.rate_limit import LoginRateLimiter
 from app.auth.router import router as auth_router
 from app.catalog.router import router as catalog_router
 from app.importing.router import router as import_router
+from app.public.router import router as public_router
 from app.config import Settings, get_settings
 from app.db import create_db_engine, create_session_factory
 from app.health import router as health_router
@@ -39,11 +40,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app.include_router(auth_router)
     app.include_router(import_router)
     app.include_router(catalog_router)
+    app.include_router(public_router)
 
     @app.exception_handler(HTTPException)
     async def auth_http_errors(request: Request, exc: HTTPException) -> JSONResponse:
         headers = dict(exc.headers or {})
-        if request.url.path.startswith("/api/auth") or request.url.path.startswith("/api/admin"):
+        if request.url.path.startswith(("/api/auth", "/api/admin", "/api/public")):
             headers["Cache-Control"] = "no-store"
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=headers)
 
@@ -58,6 +60,16 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             content={"detail": detail},
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.exception_handler(Exception)
+    async def hide_unexpected_errors(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("request failed on %s", request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "The request could not be completed."},
+            headers={"Cache-Control": "no-store"},
+        )
+
     logger.info("API configured (env=%s, debug=%s)", settings.app_env, settings.debug)
     return app
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import "./globals.css";
@@ -8,9 +9,11 @@ export const metadata: Metadata = {
   description: "Informational product catalog",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const requested = (await headers()).get("x-catalog-locale");
+  const lang = requested === "ru" || requested === "uz" || requested === "en" ? requested : "en";
   return (
-    <html lang="en">
+    <html lang={lang}>
       <body className="bg-white text-neutral-950 antialiased">{children}</body>
     </html>
   );
