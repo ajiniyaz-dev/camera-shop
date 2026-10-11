@@ -386,7 +386,11 @@ That checkpoint is on `origin/main`. It contains the admin panel. No Alembic rev
 
 Phase 5 hardening commit: `a8ff03579d14584197d3e330053752e141ae40a2` — `Harden admin workflows and verification`
 
-That commit is the parent of this note. It changes the import review screen and this handoff. No Alembic revision was added. The Excel workbooks were not modified.
+That commit is the parent of the Phase 5 handoff note `3f1a55bacab65bbefb089e3aee41756caf72ef3f`. It changes the import review screen and this handoff. No Alembic revision was added. The Excel workbooks were not modified.
+
+Phase 6 commit: `5c6b87a26c22d1ae25391c3cbcd1ecf6223ede4b` — `Implement public multilingual product catalog`
+
+That commit adds the public catalog API, the `/ru`, `/uz`, and `/en` pages, and the public catalog tests. No Alembic revision was added. The Excel workbooks were not modified.
 
 ## Next task
 
