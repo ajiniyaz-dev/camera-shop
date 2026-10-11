@@ -420,6 +420,10 @@ That commit adds the public catalog API, the `/ru`, `/uz`, and `/en` pages, and 
 
 Phase 6 checkpoint: `7ff4db4fa517348c68e28c58368ae6c302896abc` — `Record the published Phase 6 checkpoint`
 
+Phase 7 commit: `6b664ee64dd6f74d1196c4ebae38e0ffeef5194e` — `Implement technical SEO for public catalog`
+
+That commit adds public metadata, canonical and hreflang handling, `/sitemap.xml`, `/robots.txt`, Open Graph, and JSON-LD. No Alembic revision was added. The Excel workbooks were not modified.
+
 ## Next task
 
 Phase 8 — production deployment and hardening. Set `PUBLIC_SITE_URL` to the real HTTPS origin before launch, then confirm canonicals, hreflang, the sitemap, and one numeric product against that host. Do not invent a domain, phone, email, address, or social URL. Do not modify `data/source/`. Do not add a cart, checkout, payments, customer accounts, or orders. Ranking and webmaster-tool validation are not a substitute for deployment checks.
