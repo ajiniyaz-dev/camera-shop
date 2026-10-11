@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 
 import { getInternalApiUrl } from "@/lib/config";
@@ -32,6 +33,9 @@ export type PublicBrand = {
   name: string;
   description: string | null;
   translation_fallback: boolean;
+  description_fallback: boolean;
+  seo_title?: string | null;
+  seo_description?: string | null;
 };
 
 export type PublicCategoryRef = {
@@ -40,6 +44,7 @@ export type PublicCategoryRef = {
   name: string;
   description: string | null;
   translation_fallback: boolean;
+  description_fallback: boolean;
   breadcrumb: Array<{ slug: string; parent_slug: string | null; name: string }>;
 };
 
@@ -59,10 +64,26 @@ export type PublicCard = {
 export type PublicDetail = PublicCard & {
   description: string | null;
   description_fallback: boolean;
+  seo_title: string | null;
+  seo_description: string | null;
   specifications: Array<{ name: string; value: string; translation_fallback: boolean }>;
   images: PublicImage[];
   category: PublicCategoryRef | null;
   brand: PublicBrand | null;
+};
+
+export type CategoryDetail = {
+  slug: string;
+  parent_slug: string | null;
+  name: string;
+  description: string | null;
+  translation_fallback: boolean;
+  description_fallback: boolean;
+  seo_title: string | null;
+  seo_description: string | null;
+  product_count: number;
+  breadcrumb: Array<{ slug: string; parent_slug: string | null; name: string }>;
+  children: Array<{ slug: string; parent_slug: string; name: string; product_count: number }>;
 };
 
 export type CategoryNode = {
@@ -108,9 +129,11 @@ export async function publicGet<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+export const loadPublic = cache(publicGet) as typeof publicGet;
+
 export async function publicGetOrNotFound<T>(path: string): Promise<T> {
   try {
-    return await publicGet<T>(path);
+    return await loadPublic<T>(path);
   } catch (error) {
     if (error instanceof PublicCatalogError && error.status === 404) {
       notFound();
@@ -125,6 +148,13 @@ export async function requireLocale(params: Promise<{ locale: string }>): Promis
     notFound();
   }
   return locale;
+}
+
+export function categoryApiPath(locale: string, slug: string, parent?: string): string {
+  if (parent) {
+    return `/api/public/categories/${encodeURIComponent(parent)}/${encodeURIComponent(slug)}?locale=${locale}`;
+  }
+  return `/api/public/categories/${encodeURIComponent(slug)}?locale=${locale}`;
 }
 
 export function categoryPath(locale: string, slug: string, parentSlug: string | null): string {

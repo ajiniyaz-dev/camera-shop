@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ContactDetails } from "@/components/public/contact-details";
+import { JsonLd } from "@/components/public/json-ld";
 import { ProductCard } from "@/components/public/product-card";
-import { publicGet, requireLocale, type CategoryNode, type Company, type PublicCard } from "@/lib/public-api";
+import { loadPublic, requireLocale, type CategoryNode, type Company, type PublicCard } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
+import { organizationJson, pageMetadata, SITE_NAME, websiteJson } from "@/lib/seo";
 
 type HomePayload = {
   company: Company;
@@ -11,12 +14,26 @@ type HomePayload = {
   products: PublicCard[];
 };
 
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const locale = await requireLocale(params);
+  const company = await loadPublic<Company>(`/api/public/company?locale=${locale}`);
+  return pageMetadata({
+    locale,
+    title: company.name,
+    description: `${company.name}. ${messages[locale].catalog}`,
+    path: `/${locale}`,
+    index: true,
+  });
+}
+
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const locale = await requireLocale(params);
   const text = messages[locale];
-  const home = await publicGet<HomePayload>(`/api/public/home?locale=${locale}`);
+  const home = await loadPublic<HomePayload>(`/api/public/home?locale=${locale}`);
   return (
     <main className="space-y-12">
+      <JsonLd data={organizationJson(home.company)} />
+      <JsonLd data={websiteJson(locale, home.company.name || SITE_NAME)} />
       <section className="space-y-4">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{home.company.name}</h1>
         <form action={`/${locale}/search`} method="get" role="search" className="flex max-w-xl flex-col gap-2 sm:flex-row">

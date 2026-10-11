@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 
 import { SiteFooter } from "@/components/public/site-footer";
 import { SiteHeader } from "@/components/public/site-header";
-import { publicGet, requireLocale, type Company } from "@/lib/public-api";
+import { loadPublic, requireLocale, type Company } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
+import { SITE_NAME } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const locale = await requireLocale(params);
-  return { title: `HikVision — ${messages[locale].catalog}` };
+  return { title: { absolute: `${SITE_NAME} | ${messages[locale].catalog}` } };
 }
 
 export default async function LocaleLayout({
@@ -25,7 +26,7 @@ export default async function LocaleLayout({
   params: Promise<{ locale: string }>;
 }) {
   const locale = await requireLocale(params);
-  const company = await publicGet<Company>(`/api/public/company?locale=${locale}`);
+  const company = await loadPublic<Company>(`/api/public/company?locale=${locale}`);
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader locale={locale} company={company} />

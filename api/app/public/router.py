@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -67,6 +68,18 @@ def _text(rows: list, locale: str, attr: str) -> tuple[str | None, bool]:
     if original:
         return original, True
     return None, False
+
+
+def _own(rows: list, locale: str, attr: str) -> str | None:
+    """Locale value only. SEO titles do not fall back to Russian."""
+    by_locale = {row.locale: row for row in rows}
+    return _clean(getattr(by_locale.get(locale), attr, None))
+
+
+def _stamp(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.isoformat()
 
 
 def _published_filter():
@@ -150,6 +163,7 @@ def _brand(brand: Brand | None, locale: str) -> dict[str, object] | None:
         "name": name or brand.slug,
         "description": description,
         "translation_fallback": fallback or description_fallback,
+        "description_fallback": description_fallback,
     }
 
 
@@ -166,6 +180,7 @@ def _category_public(index: dict[int, Category], category: Category | None, loca
         "name": name or category.slug,
         "description": description,
         "translation_fallback": fallback or description_fallback,
+        "description_fallback": description_fallback,
         "breadcrumb": [
             {
                 "slug": item.slug,
@@ -243,6 +258,8 @@ def _detail(product: Product, locale: str, index: dict[int, Category]) -> dict[s
         {
             "description": description,
             "description_fallback": description_fallback,
+            "seo_title": _own(product.translations, locale, "seo_title"),
+            "seo_description": _own(product.translations, locale, "seo_description"),
             "specifications": specifications,
             "images": [_image(image, str(card["name"])) for image in images],
         }
@@ -401,6 +418,8 @@ def _category_detail(db: Session, locale: str, slug: str, parent_slug: str | Non
         ),
         key=lambda item: (item.sort_order, item.id),
     )
+    public["seo_title"] = _own(category.translations, locale, "seo_title")
+    public["seo_description"] = _own(category.translations, locale, "seo_description")
     public["product_count"] = counts.get(category.id, 0)
     public["children"] = [
         {
@@ -423,7 +442,11 @@ def brand_detail(slug: str, locale: str = Query(), db: Session = Depends(get_db)
     if brand is None:
         raise HTTPException(status_code=404, detail="Brand not found.")
     public = _brand(brand, selected)
-    return public or {}
+    if public is None:
+        return {}
+    public["seo_title"] = _own(brand.translations, selected, "seo_title")
+    public["seo_description"] = _own(brand.translations, selected, "seo_description")
+    return public
 
 
 @router.get("/products")
@@ -546,3 +569,48 @@ def product_detail(slug: str, locale: str = Query(), db: Session = Depends(get_d
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found.")
     return _detail(product, selected, _categories(db))
+
+
+def _localized_entries(suffix: str, last_modified: str | None) -> list[dict[str, object]]:
+    alternates = {locale: f"/{locale}{suffix}" for locale in LOCALES}
+    alternates["x-default"] = alternates["ru"]
+    return [
+        {"path": alternates[locale], "last_modified": last_modified, "alternates": dict(alternates)}
+        for locale in LOCALES
+    ]
+
+
+def _category_suffix(index: dict[int, Category], category: Category) -> str | None:
+    path = [item for item in _category_path(index, category) if item.is_published]
+    if not path or path[-1].id != category.id or len(path) > 2:
+        return None
+    if len(path) == 1:
+        return f"/categories/{path[0].slug}"
+    return f"/categories/{path[0].slug}/{path[1].slug}"
+
+
+@router.get("/sitemap")
+def public_sitemap(db: Session = Depends(get_db)) -> dict[str, object]:
+    entries: list[dict[str, object]] = []
+    for suffix in ("", "/catalog", "/categories", "/contact"):
+        entries.extend(_localized_entries(suffix, None))
+    index = _categories(db)
+    categories = [
+        category
+        for category in index.values()
+        if category.is_published and _category_suffix(index, category) is not None
+    ]
+    for category in sorted(categories, key=lambda item: (item.sort_order, item.id)):
+        suffix = _category_suffix(index, category)
+        if suffix is None:
+            continue
+        entries.extend(_localized_entries(suffix, _stamp(category.updated_at)))
+    brands = db.scalars(select(Brand).where(Brand.is_published.is_(True)).order_by(Brand.slug, Brand.id)).all()
+    for brand in brands:
+        entries.extend(_localized_entries(f"/brands/{brand.slug}", _stamp(brand.updated_at)))
+    products = db.scalars(
+        select(Product).where(_published_filter()).order_by(Product.slug, Product.id)
+    ).all()
+    for product in products:
+        entries.extend(_localized_entries(f"/products/{product.slug}", _stamp(product.updated_at)))
+    return {"entries": entries}

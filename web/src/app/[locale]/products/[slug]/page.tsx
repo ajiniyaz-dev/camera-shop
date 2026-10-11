@@ -1,8 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
+import { JsonLd } from "@/components/public/json-ld";
 import { PriceLabel } from "@/components/public/price-label";
 import { categoryPath, publicGetOrNotFound, requireLocale, type PublicDetail } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
+import { breadcrumbJson, pageMetadata, productDescription, productJson, productTitle } from "@/lib/seo";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const locale = await requireLocale(params);
+  const product = await publicGetOrNotFound<PublicDetail>(
+    `/api/public/products/${encodeURIComponent(slug)}?locale=${locale}`,
+  );
+  return pageMetadata({
+    locale,
+    title: productTitle(product),
+    description: productDescription(product),
+    path: `/${locale}/products/${slug}`,
+    index: true,
+    image: product.images[0] ?? null,
+  });
+}
 
 export default async function ProductPage({
   params,
@@ -15,21 +38,31 @@ export default async function ProductPage({
   const product = await publicGetOrNotFound<PublicDetail>(
     `/api/public/products/${encodeURIComponent(slug)}?locale=${locale}`,
   );
+  const crumbs = [
+    { name: text.home, path: `/${locale}` },
+    { name: text.catalog, path: `/${locale}/catalog` },
+    ...(product.category?.breadcrumb ?? []).map((item) => ({
+      name: item.name,
+      path: categoryPath(locale, item.slug, item.parent_slug),
+    })),
+    { name: product.name, path: `/${locale}/products/${product.slug}` },
+  ];
   return (
     <main className="space-y-8">
+      <JsonLd data={breadcrumbJson(crumbs)} />
+      <JsonLd data={productJson(product)} />
       <nav aria-label={text.categories} className="text-sm text-slate-700">
         <ol className="flex flex-wrap gap-2">
-          <li>
-            <Link href={`/${locale}/catalog`} className="underline underline-offset-4">
-              {text.catalog}
-            </Link>
-          </li>
-          {product.category?.breadcrumb.map((item) => (
-            <li key={`${item.parent_slug ?? ""}/${item.slug}`}>
-              <span aria-hidden="true">/</span>{" "}
-              <Link href={categoryPath(locale, item.slug, item.parent_slug)} className="underline underline-offset-4">
-                {item.name}
-              </Link>
+          {crumbs.map((item, index) => (
+            <li key={`${item.path}-${index}`}>
+              {index > 0 ? <span aria-hidden="true">/ </span> : null}
+              {index === crumbs.length - 1 ? (
+                <span>{item.name}</span>
+              ) : (
+                <Link href={item.path} className="underline underline-offset-4">
+                  {item.name}
+                </Link>
+              )}
             </li>
           ))}
         </ol>

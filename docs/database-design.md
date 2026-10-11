@@ -269,7 +269,7 @@ Deleting image rows does not delete a checksum object that another row still use
 | product_id | bigint | no | FK `ON DELETE CASCADE` |
 | created_at | timestamptz | no | |
 
-Public locale paths 301 `/{locale}/products/{from_slug}` to the current slug. Import does not change an existing slug.
+Public locale paths 301 `/{locale}/products/{from_slug}` to the current slug when a row exists. Import does not change an existing slug. The admin API assigns a slug once and does not edit it, so this table is not created. Old slugs stay unknown and return 404. A redirect row is only needed if a later change lets a published slug move.
 
 ## Admin identity
 

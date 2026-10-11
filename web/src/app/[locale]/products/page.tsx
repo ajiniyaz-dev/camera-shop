@@ -1,6 +1,21 @@
+import type { Metadata } from "next";
+
 import { ProductListing } from "@/components/public/product-listing";
 import { requireLocale, type SearchParams } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
+import { catalogCopy, pageMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const locale = await requireLocale(params);
+  const copy = catalogCopy(locale);
+  return pageMetadata({
+    locale,
+    title: `${messages[locale].products} | HikVision`,
+    description: copy.description,
+    path: `/${locale}/catalog`,
+    index: false,
+  });
+}
 
 export default async function ProductsPage({
   params,

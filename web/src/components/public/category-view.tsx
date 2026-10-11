@@ -1,19 +1,10 @@
 import Link from "next/link";
 
+import { JsonLd } from "@/components/public/json-ld";
 import { ProductListing } from "@/components/public/product-listing";
-import { publicGetOrNotFound, type SearchParams } from "@/lib/public-api";
+import { categoryApiPath, categoryPath, publicGetOrNotFound, type CategoryDetail, type SearchParams } from "@/lib/public-api";
 import { messages, type PublicLocale } from "@/lib/public-i18n";
-
-type CategoryDetail = {
-  slug: string;
-  parent_slug: string | null;
-  name: string;
-  description: string | null;
-  translation_fallback: boolean;
-  product_count: number;
-  breadcrumb: Array<{ slug: string; parent_slug: string | null; name: string }>;
-  children: Array<{ slug: string; parent_slug: string; name: string; product_count: number }>;
-};
+import { breadcrumbJson } from "@/lib/seo";
 
 export async function CategoryView({
   locale,
@@ -27,31 +18,25 @@ export async function CategoryView({
   searchParams: SearchParams;
 }) {
   const text = messages[locale];
-  const path = parent
-    ? `/api/public/categories/${encodeURIComponent(parent)}/${encodeURIComponent(slug)}?locale=${locale}`
-    : `/api/public/categories/${encodeURIComponent(slug)}?locale=${locale}`;
-  const category = await publicGetOrNotFound<CategoryDetail>(path);
+  const category = await publicGetOrNotFound<CategoryDetail>(categoryApiPath(locale, slug, parent));
   const pagePath = parent ? `/${locale}/categories/${parent}/${slug}` : `/${locale}/categories/${slug}`;
+  const crumbs = [
+    { name: text.home, path: `/${locale}` },
+    { name: text.categories, path: `/${locale}/categories` },
+    ...category.breadcrumb.map((item) => ({
+      name: item.name,
+      path: categoryPath(locale, item.slug, item.parent_slug),
+    })),
+  ];
   return (
     <main className="space-y-8">
+      <JsonLd data={breadcrumbJson(crumbs)} />
       <nav aria-label={text.categories}>
         <ol className="flex flex-wrap gap-2 text-sm text-slate-700">
-          <li>
-            <Link href={`/${locale}/categories`} className="underline underline-offset-4">
-              {text.categories}
-            </Link>
-          </li>
-          {category.breadcrumb.map((item) => (
-            <li key={`${item.parent_slug ?? ""}/${item.slug}`}>
-              <span aria-hidden="true">/</span>{" "}
-              <Link
-                href={
-                  item.parent_slug
-                    ? `/${locale}/categories/${item.parent_slug}/${item.slug}`
-                    : `/${locale}/categories/${item.slug}`
-                }
-                className="underline underline-offset-4"
-              >
+          {crumbs.map((item, index) => (
+            <li key={item.path}>
+              {index > 0 ? <span aria-hidden="true">/ </span> : null}
+              <Link href={item.path} className="underline underline-offset-4">
                 {item.name}
               </Link>
             </li>

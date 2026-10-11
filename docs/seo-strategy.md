@@ -4,7 +4,7 @@ Search is part of the first release for HikVision. This strategy does not promis
 
 Public pages are rendered on the server. The HTML includes the H1, the price state, and the description that is actually available for that locale.
 
-The public company name is HikVision. The domain is not known yet. Canonicals, sitemap URLs, and structured-data hosts use the configured `PUBLIC_SITE_URL`. Until the client supplies the domain, that setting stays a placeholder and must be changed before launch. No host name is invented in content.
+The public company name is HikVision. The domain is not known yet. Canonicals, sitemap URLs, and structured-data hosts use `PUBLIC_SITE_URL` only when it is an `http` or `https` origin whose host is not `localhost`, `127.0.0.1`, or `::1`, and whose path is empty. The repository value `http://localhost` is that placeholder. While it is in place, pages still have titles, descriptions, and robots directives, and they do not emit localhost as a canonical, hreflang, Open Graph, or sitemap host. Set the real origin before launch. No host name is invented in content.
 
 ## Multilingual URLs
 
@@ -30,7 +30,7 @@ Slug algorithm, once, at insert:
 3. If `option_label` is set, append its slug so monthly and yearly plans cannot share a URL.
 4. If the slug is taken, append `-r` and the source row, then the product id if needed.
 
-Two `CS-H8c (3MP)` rows must not receive the same slug. Import does not change a slug after insert. An admin change writes `slug_redirects` and every locale 301s from the old slug to the new one.
+Two `CS-H8c (3MP)` rows must not receive the same slug. Import does not change a slug after insert. The admin API also assigns a slug once and does not change it. `slug_redirects` is not created. A published slug does not move, so there is no old URL to redirect. If a later change allows a slug edit, that change must write a redirect row and 301 every locale from the old slug to the new one. Redirects must stay inside the public catalog and must not loop.
 
 Admin stays at `/admin` with no locale prefix in the public sitemap. Admin screens still use `ru`, `uz`, and `en` message catalogs.
 
@@ -64,10 +64,10 @@ Each indexable URL has:
 - One `<title>`. Prefer the locale’s `seo_title`. Otherwise `{model} — {brand or HikVision} | HikVision` for products, and `{localized category} | HikVision` for categories.
 - One meta description, from `seo_description` or the fallback in the previous section. Do not invent specifications.
 - One H1. Products use the localized name if one was saved, otherwise the display model.
-- `<link rel="canonical">` to that locale’s own HTTPS URL.
-- `hreflang` alternates for `ru`, `uz`, and `en`, plus `x-default` pointing at the Russian URL. Russian is the source language. This is a technical default, not a claim that Russian is a translation of the other locales.
+- `<link rel="canonical">` to that locale’s own URL on the configured public origin. The tag is omitted while the origin is still the loopback placeholder.
+- `hreflang` alternates for `ru`, `uz`, and `en`, plus `x-default` pointing at the Russian URL. Russian is the source language. This is a technical default, not a claim that Russian is a translation of the other locales. The same slug exists in every locale. A missing translation still has a route and shows the Russian text on the page with the fallback caption. The meta description does not reuse that Russian sentence. These alternates are omitted while the origin is the loopback placeholder, so they are not pointed at localhost.
 
-Filtered and search URLs canonicalize to the unfiltered catalog or category URL for that locale. They are not indexed as separate pages.
+The first page of `/catalog`, a category, or a brand, with no query, is indexable and canonical to itself. Search, filters, sort, and later pages are `noindex, follow` and canonical to their own URL, including the query. They are not canonicalized to the unfiltered listing, because that listing is different content. `/{locale}/products` is the same listing as `/{locale}/catalog`, so it is `noindex` and canonical to the catalog. The sitemap lists only the clean indexable URLs.
 
 When the real domain replaces the placeholder, canonicals and `hreflang` must all use that host, with one 301 from the other host form (`www` or apex) after the client chooses it.
 
@@ -76,7 +76,7 @@ When the real domain replaces the placeholder, canonicals and `hreflang` must al
 - `og:locale` is `ru_RU`, `uz_UZ`, or `en_US` to match the page. `og:locale:alternate` lists the other two.
 - `og:title` and `og:description` follow the SEO fields.
 - `og:url` is the canonical.
-- `og:image` is the primary public image as an absolute HTTPS URL when a high-confidence or confirmed image exists. If there is no public image, omit `og:image`. Do not use a stock photo.
+- `og:image` is the primary public image as an absolute URL on the configured origin when a high-confidence or confirmed image exists. If there is no public image, or the origin is still the loopback placeholder, omit `og:image`. Do not use a stock photo or an invented logo. Width and height are included when the image row has them.
 - The site name is HikVision.
 
 ## Structured data
@@ -95,7 +95,9 @@ JSON-LD in the server-rendered page.
 
 **BreadcrumbList** uses the locale’s labels and URLs: Home, catalog, brand or category, product.
 
-**Organization** uses the name HikVision. Add `url`, `telephone`, `email`, and `address` only after those profile fields are non-empty. Do not ship placeholder NAP data. LocalBusiness is used instead of Organization only when a real address exists.
+**Organization** uses the configured public company name. Add `url` only when the public origin is configured. Add `telephone`, `email`, `address`, `logo`, and `sameAs` only when those profile fields are non-empty and, for the logo and site URL, the public origin is configured. Do not ship placeholder NAP data. LocalBusiness is used instead of Organization only when a real address exists. Ratings, reviews, and a street address are omitted when they are unknown.
+
+**WebSite** and **SearchAction** are added on the homepage only when the public origin is configured. The target is `/{locale}/search?q={search_term_string}`, which matches the search form.
 
 ## Sitemap and robots
 
@@ -107,7 +109,7 @@ JSON-LD in the server-rendered page.
 
 It omits drafts, archived products, admin, import preview, and search URLs.
 
-Each URL entry can include `xhtml:link` alternates for the three locales.
+Each URL entry can include `xhtml:link` alternates for the three locales and `x-default`. `lastmod` is written only from the row `updated_at` for a product, category, or brand. Home, catalog, the category index, and contact omit `lastmod`. The sitemap is empty while `PUBLIC_SITE_URL` is the loopback placeholder, and `/robots.txt` then omits the Sitemap line. With a real origin, the Sitemap line is `{origin}/sitemap.xml`. `robots.txt` allows `/ru`, `/uz`, and `/en`, and disallows `/admin`, `/api/`, `/media/imports`, and `/media/private-uploads`. That file is not an access control. Authentication and publication filtering stay authoritative. Full-text search through `search_vector` is deferred; public search stays bounded `ILIKE`.
 
 `/robots.txt`:
 

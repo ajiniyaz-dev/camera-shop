@@ -124,7 +124,7 @@ One Compose stack on the Ahost VPS:
 
 ## Request boundaries
 
-- Public routes read the public schema only. The catalog reads are `GET /api/public/...` and do not use administrator authentication. Canonical URLs, hreflang, sitemap, robots.txt, and structured data are later SEO work.
+- Public routes read the public schema only. The catalog reads are `GET /api/public/...` and do not use administrator authentication. Public pages add canonical URLs, hreflang, Open Graph, and JSON-LD when `PUBLIC_SITE_URL` is a non-loopback origin. `/sitemap.xml` and `/robots.txt` are served by Next.js. The sitemap data comes from `GET /api/public/sitemap`.
 - Admin routes are the only readers of discount notes, source headers, import diagnostics, lock flags, and audit detail.
 - The importer is the only writer of source-snapshot columns, and only for the source codes in the job being applied.
 - Manual product edit is the only writer that sets lock flags.

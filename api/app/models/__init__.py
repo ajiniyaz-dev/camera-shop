@@ -1,4 +1,8 @@
-"""Catalog, import, audit, and session models. Slug redirects are later work."""
+"""Catalog, import, audit, and session models.
+
+Slugs are assigned once. Product, brand, and category updates do not change them,
+so slug_redirects is not created.
+"""
 
 from app.models.admin_user import AdminUser
 from app.models.audit import AdminAuditLog

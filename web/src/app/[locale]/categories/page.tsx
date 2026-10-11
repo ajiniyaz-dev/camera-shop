@@ -1,12 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
-import { publicGet, requireLocale, type CategoryNode } from "@/lib/public-api";
+import { loadPublic, requireLocale, type CategoryNode } from "@/lib/public-api";
 import { messages, type PublicLocale } from "@/lib/public-i18n";
+import { pageMetadata, SITE_NAME } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const locale = await requireLocale(params);
+  const text = messages[locale];
+  return pageMetadata({
+    locale,
+    title: `${text.categories} | ${SITE_NAME}`,
+    description: `${SITE_NAME}. ${text.categories}`,
+    path: `/${locale}/categories`,
+    index: true,
+  });
+}
 
 export default async function CategoriesPage({ params }: { params: Promise<{ locale: string }> }) {
   const locale = await requireLocale(params);
   const text = messages[locale];
-  const body = await publicGet<{ categories: CategoryNode[] }>(`/api/public/categories?locale=${locale}`);
+  const body = await loadPublic<{ categories: CategoryNode[] }>(`/api/public/categories?locale=${locale}`);
   return (
     <main className="space-y-6">
       <h1 className="text-3xl font-semibold">{text.categories}</h1>

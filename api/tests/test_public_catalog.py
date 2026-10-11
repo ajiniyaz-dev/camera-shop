@@ -7,7 +7,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 from app.auth.passwords import hash_password
@@ -53,8 +53,6 @@ PRIVATE_KEYS = {
     "category_locked",
     "model_locked",
     "description_locked",
-    "seo_title",
-    "seo_description",
     "origin",
     "association_status",
     "anchor_row",
@@ -85,7 +83,7 @@ def _admin_engine():
         engine = _connect(url)
         if engine is not None:
             return url, engine
-    pytest.fail("PostgreSQL is not reachable for the disposable Phase 6 database")
+    pytest.fail("PostgreSQL is not reachable for the disposable Phase 7 database")
 
 
 def _alembic(database_url: str) -> Config:
@@ -99,7 +97,7 @@ def _alembic(database_url: str) -> Config:
 @pytest.fixture(scope="module")
 def database_url():
     admin_url, admin_engine = _admin_engine()
-    name = "catalog_phase6_test"
+    name = "catalog_phase7_test"
     with admin_engine.connect() as connection:
         connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         connection.execute(text(f'CREATE DATABASE "{name}"'))
@@ -550,3 +548,67 @@ def test_public_routes_do_not_weaken_admin_protection(client: TestClient, engine
         headers={"Origin": ORIGIN},
     )
     assert denied.status_code == 403
+
+
+def test_sitemap_lists_published_pages_only(client: TestClient, engine) -> None:
+    _seed(engine)
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product).where(Product.slug == "child-cam"))
+        assert product is not None
+        for item in product.translations:
+            if item.locale == "ru":
+                item.seo_title = "Купольная SEO"
+                item.seo_description = "Описание для поиска"
+        category = db.scalar(select(Category).where(Category.slug == "cameras"))
+        assert category is not None
+        for item in category.translations:
+            if item.locale == "ru":
+                item.seo_title = "Камеры SEO"
+        db.commit()
+    finally:
+        db.close()
+    response = client.get("/api/public/sitemap")
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    _walk(entries)
+    paths = [item["path"] for item in entries]
+    assert len(paths) == len(set(paths))
+    for locale in ("ru", "uz", "en"):
+        assert f"/{locale}" in paths
+        assert f"/{locale}/catalog" in paths
+        assert f"/{locale}/categories" in paths
+        assert f"/{locale}/contact" in paths
+        assert f"/{locale}/categories/cameras" in paths
+        assert f"/{locale}/categories/cameras/domes" in paths
+        assert f"/{locale}/brands/hikvision" in paths
+        assert f"/{locale}/products/child-cam" in paths
+        assert f"/{locale}/products/request-cam" in paths
+        assert f"/{locale}/products/quiet-cam" in paths
+    joined = "\n".join(paths)
+    for blocked in ("draft-cam", "archived-cam", "deleted-cam", "/categories/secret", "/brands/quiet"):
+        assert blocked not in joined
+    assert not any("/search" in path or path.endswith("/products") for path in paths)
+    child = next(item for item in entries if item["path"] == "/en/products/child-cam")
+    assert child["alternates"]["ru"] == "/ru/products/child-cam"
+    assert child["alternates"]["uz"] == "/uz/products/child-cam"
+    assert child["alternates"]["en"] == "/en/products/child-cam"
+    assert child["alternates"]["x-default"] == "/ru/products/child-cam"
+    assert child["last_modified"]
+    home = next(item for item in entries if item["path"] == "/ru")
+    assert home["last_modified"] is None
+    english = client.get("/api/public/products/child-cam", params={"locale": "en"})
+    assert english.status_code == 200
+    assert english.json()["seo_title"] is None
+    assert english.json()["seo_description"] is None
+    russian = client.get("/api/public/products/child-cam", params={"locale": "ru"})
+    assert russian.json()["seo_title"] == "Купольная SEO"
+    assert russian.json()["seo_description"] == "Описание для поиска"
+    assert "offers" not in russian.json()
+    request = client.get("/api/public/products/request-cam", params={"locale": "ru"})
+    assert request.json()["price"] == {"status": "on_request", "amount": None, "currency": None}
+    hidden = client.get("/api/public/products/hidden-price", params={"locale": "ru"})
+    assert hidden.json()["price"]["amount"] is None
+    cameras = client.get("/api/public/categories/cameras", params={"locale": "en"})
+    assert cameras.json()["seo_title"] is None
+    assert client.get("/api/public/categories/cameras", params={"locale": "ru"}).json()["seo_title"] == "Камеры SEO"
