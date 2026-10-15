@@ -6,7 +6,12 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const locale = normalizeLocale(String(form.get("locale") ?? ""));
   const next = safeNext(String(form.get("next") ?? "/admin"));
-  const response = NextResponse.redirect(new URL(next, request.url), 303);
+  // Location must stay relative. Behind Nginx, request.url is the container
+  // bind address, and an absolute redirect never replaces the current page.
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: { Location: next },
+  });
   response.cookies.set("hikvision_ui_locale", locale, {
     path: "/",
     sameSite: "lax",

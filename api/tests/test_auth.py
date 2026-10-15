@@ -178,6 +178,107 @@ def test_login_success_sets_cookies_and_hides_the_hash(engine, client: TestClien
     assert PASSWORD not in response.text
 
 
+def test_csrf_origin_accepts_the_browser_port_when_host_keeps_it() -> None:
+    from starlette.requests import Request
+
+    from app.auth.csrf import _allowed_origins, _supplied_origin
+
+    def request_for(host: str) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "http",
+                "path": "/api/admin/products",
+                "raw_path": b"/api/admin/products",
+                "query_string": b"",
+                "headers": [
+                    (b"host", host.encode()),
+                    (b"origin", b"http://127.0.0.1:8080"),
+                    (b"x-forwarded-proto", b"http"),
+                ],
+                "client": ("172.19.0.3", 12345),
+                "server": ("172.19.0.4", 8000),
+            }
+        )
+
+    settings = Settings(
+        database_url="postgresql+psycopg://catalog:change-me@postgres:5432/catalog",
+        session_secret="test-only-secret",
+        app_env="local",
+        debug=False,
+        public_site_url="http://localhost",
+        trust_proxy=True,
+    )
+    stripped = request_for("127.0.0.1")
+    assert _supplied_origin(stripped) == "http://127.0.0.1:8080"
+    assert _supplied_origin(stripped) not in _allowed_origins(stripped, settings)
+    forwarded = request_for("127.0.0.1:8080")
+    assert _supplied_origin(forwarded) in _allowed_origins(forwarded, settings)
+
+
+def test_csrf_origin_accepts_the_preview_port_forwarded_by_next() -> None:
+    from starlette.requests import Request
+
+    from app.auth.csrf import _allowed_origins, _supplied_origin
+
+    def request_for(*headers: tuple[bytes, bytes]) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "http",
+                "path": "/api/admin/imports",
+                "raw_path": b"/api/admin/imports",
+                "query_string": b"",
+                "headers": list(headers),
+                "client": ("172.19.0.3", 52626),
+                "server": ("172.19.0.4", 8000),
+            }
+        )
+
+    settings = Settings(
+        database_url="postgresql+psycopg://catalog:change-me@postgres:5432/catalog",
+        session_secret="test-only-secret",
+        app_env="local",
+        debug=False,
+        public_site_url="http://localhost",
+        trust_proxy=True,
+    )
+    preview = request_for(
+        (b"host", b"127.0.0.1:8080"),
+        (b"origin", b"http://127.0.0.1:3010"),
+        (b"x-forwarded-host", b"127.0.0.1:3010"),
+        (b"x-forwarded-proto", b"http"),
+    )
+    assert _supplied_origin(preview) == "http://127.0.0.1:3010"
+    assert _supplied_origin(preview) in _allowed_origins(preview, settings)
+    missing_forwarded_host = request_for(
+        (b"host", b"127.0.0.1:8080"),
+        (b"origin", b"http://127.0.0.1:3010"),
+        (b"x-forwarded-proto", b"http"),
+    )
+    assert _supplied_origin(missing_forwarded_host) not in _allowed_origins(missing_forwarded_host, settings)
+    foreign = request_for(
+        (b"host", b"127.0.0.1:8080"),
+        (b"origin", b"http://evil.example"),
+        (b"x-forwarded-host", b"127.0.0.1:3010"),
+        (b"x-forwarded-proto", b"http"),
+    )
+    assert _supplied_origin(foreign) not in _allowed_origins(foreign, settings)
+    untrusted = Settings(
+        database_url=settings.database_url,
+        session_secret=settings.session_secret,
+        app_env="local",
+        debug=False,
+        public_site_url="http://localhost",
+        trust_proxy=False,
+    )
+    assert _supplied_origin(preview) not in _allowed_origins(preview, untrusted)
+
+
 def test_unknown_email_and_bad_password_look_the_same(engine, client: TestClient) -> None:
     _seed(engine)
     unknown = _login(client, "missing@example.com", OTHER_PASSWORD)

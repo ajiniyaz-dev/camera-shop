@@ -52,6 +52,18 @@ const ru = {
   backToCatalog: "К каталогу",
   subcategories: "Подкатегории",
   allProducts: "Все товары",
+  heroHeadline: "Оборудование для видеонаблюдения",
+  heroText: "Информационный каталог камер Hikvision, EZVIZ и сопутствующего оборудования для систем безопасности.",
+  browseCatalog: "Смотреть каталог",
+  searchCatalog: "Поиск по каталогу",
+  categoryIntro: "Опубликованные разделы каталога.",
+  productIntro: "Позиции, недавно обновлённые в каталоге.",
+  homeEmptyCategoriesTitle: "Категории ещё не опубликованы",
+  homeEmptyCategories: "Когда раздел будет опубликован, он появится в этом списке.",
+  homeEmptyProductsTitle: "Товары ещё не опубликованы",
+  homeEmptyProducts: "Когда товар будет опубликован, его карточка появится здесь.",
+  navigation: "Навигация",
+  images: "Изображения",
 };
 
 const uz: { [Key in keyof typeof ru]: string } = {
@@ -105,6 +117,18 @@ const uz: { [Key in keyof typeof ru]: string } = {
   backToCatalog: "Katalogga qaytish",
   subcategories: "Ichki toifalar",
   allProducts: "Barcha mahsulotlar",
+  heroHeadline: "Videokuzatuv uskunalari",
+  heroText: "Hikvision, EZVIZ kameralari va xavfsizlik uskunalari haqidagi ma'lumot katalogi.",
+  browseCatalog: "Katalogni ko'rish",
+  searchCatalog: "Katalog bo'yicha qidiruv",
+  categoryIntro: "Nashr qilingan katalog bo'limlari.",
+  productIntro: "Katalogda yaqinda yangilangan mahsulotlar.",
+  homeEmptyCategoriesTitle: "Toifalar hali nashr qilinmagan",
+  homeEmptyCategories: "Bo'lim nashr qilingach, u shu ro'yxatda ko'rinadi.",
+  homeEmptyProductsTitle: "Mahsulotlar hali nashr qilinmagan",
+  homeEmptyProducts: "Mahsulot nashr qilingach, uning kartochkasi shu yerda ko'rinadi.",
+  navigation: "Navigatsiya",
+  images: "Rasmlar",
 };
 
 const en: { [Key in keyof typeof ru]: string } = {
@@ -158,6 +182,18 @@ const en: { [Key in keyof typeof ru]: string } = {
   backToCatalog: "Back to catalog",
   subcategories: "Subcategories",
   allProducts: "All products",
+  heroHeadline: "Video surveillance equipment",
+  heroText: "An informational catalog of Hikvision and EZVIZ cameras and related security equipment.",
+  browseCatalog: "View the catalog",
+  searchCatalog: "Search the catalog",
+  categoryIntro: "Published sections of the catalog.",
+  productIntro: "Items recently updated in the catalog.",
+  homeEmptyCategoriesTitle: "No categories are published yet",
+  homeEmptyCategories: "A section appears in this list after it is published.",
+  homeEmptyProductsTitle: "No products are published yet",
+  homeEmptyProducts: "A product card appears here after the product is published.",
+  navigation: "Navigation",
+  images: "Images",
 };
 
 export const messages = { ru, uz, en };

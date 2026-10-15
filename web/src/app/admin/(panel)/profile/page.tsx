@@ -72,12 +72,31 @@ export default function ProfilePage() {
         <div className="sm:col-span-2">
           <h2 className="text-sm font-medium">{translate(locale, "addLink")}</h2>
           {profile.social_links.map((link, index) => (
-            <div key={index} className="mt-2 grid gap-2 sm:grid-cols-2">
-              <input aria-label={translate(locale, "socialLabel")} value={link.label} onChange={(event) => replaceLink(index, { ...link, label: event.target.value })} className={field} />
-              <input aria-label={translate(locale, "socialUrl")} value={link.url} onChange={(event) => replaceLink(index, { ...link, url: event.target.value })} className={field} />
+            <div key={index} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <label className="block text-sm">
+                {translate(locale, "socialLabel")}
+                <input aria-label={translate(locale, "socialLabel")} value={link.label} onChange={(event) => replaceLink(index, { ...link, label: event.target.value })} className={field} />
+              </label>
+              <label className="block text-sm">
+                {translate(locale, "socialUrl")}
+                <input aria-label={translate(locale, "socialUrl")} value={link.url} onChange={(event) => replaceLink(index, { ...link, url: event.target.value })} className={field} />
+              </label>
+              <button
+                type="button"
+                className="mb-0.5 text-sm underline"
+                aria-label={link.label.trim() ? `${translate(locale, "removeLink")}: ${link.label.trim()}` : translate(locale, "removeLink")}
+                onClick={() => removeLink(index)}
+              >
+                {translate(locale, "removeLink")}
+              </button>
             </div>
           ))}
-          <button type="button" className="mt-2 text-sm underline" onClick={() => set("social_links", [...profile.social_links, { label: "", url: "" }])}>
+          <button
+            type="button"
+            className="mt-2 text-sm underline disabled:text-neutral-400"
+            disabled={profile.social_links.length >= 8}
+            onClick={() => set("social_links", [...profile.social_links, { label: "", url: "" }])}
+          >
             {translate(locale, "addLink")}
           </button>
         </div>
@@ -93,6 +112,13 @@ export default function ProfilePage() {
     set(
       "social_links",
       profile!.social_links.map((item, itemIndex) => (itemIndex === index ? link : item)),
+    );
+  }
+
+  function removeLink(index: number) {
+    set(
+      "social_links",
+      profile!.social_links.filter((_, itemIndex) => itemIndex !== index),
     );
   }
 }

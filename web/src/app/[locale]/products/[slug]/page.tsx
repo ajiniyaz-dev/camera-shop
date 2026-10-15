@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Breadcrumbs } from "@/components/public/breadcrumbs";
+import { focusLight } from "@/components/public/brand-mark";
 import { JsonLd } from "@/components/public/json-ld";
 import { PriceLabel } from "@/components/public/price-label";
+import { ProductGallery } from "@/components/public/product-gallery";
 import { categoryPath, publicGetOrNotFound, requireLocale, type PublicDetail } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
 import { breadcrumbJson, pageMetadata, productDescription, productJson, productTitle } from "@/lib/seo";
@@ -48,103 +51,82 @@ export default async function ProductPage({
     { name: product.name, path: `/${locale}/products/${product.slug}` },
   ];
   return (
-    <main className="space-y-8">
+    <main className="space-y-10">
       <JsonLd data={breadcrumbJson(crumbs)} />
       <JsonLd data={productJson(product)} />
-      <nav aria-label={text.categories} className="text-sm text-slate-700">
-        <ol className="flex flex-wrap gap-2">
-          {crumbs.map((item, index) => (
-            <li key={`${item.path}-${index}`}>
-              {index > 0 ? <span aria-hidden="true">/ </span> : null}
-              {index === crumbs.length - 1 ? (
-                <span>{item.name}</span>
-              ) : (
-                <Link href={item.path} className="underline underline-offset-4">
-                  {item.name}
-                </Link>
-              )}
-            </li>
-          ))}
-        </ol>
-      </nav>
-      <div className="grid gap-8 lg:grid-cols-2">
-        <section className="space-y-3">
-          {product.images.length ? (
-            <ul className="space-y-3">
-              {product.images.map((image) => (
-                <li key={image.url} className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-                  <img
-                    src={image.url}
-                    alt={image.alt}
-                    width={image.width ?? 960}
-                    height={image.height ?? 720}
-                    className="h-auto max-h-[32rem] w-full object-contain"
-                  />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="flex h-72 items-center justify-center rounded-lg bg-slate-100 text-slate-700">{text.noImage}</div>
-          )}
-        </section>
-        <section className="space-y-4">
-          <h1 className="text-3xl font-semibold leading-tight">{product.name}</h1>
-          {product.translation_fallback ? <p className="text-sm text-slate-600">{text.fallback}</p> : null}
-          <p>
-            {text.model}: {product.model_display}
-            {product.option_label ? ` · ${product.option_label}` : ""}
-          </p>
+      <Breadcrumbs label={text.navigation} items={crumbs} />
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+        <ProductGallery images={product.images} emptyLabel={text.noImage} label={text.images} />
+        <section className="space-y-4 border border-navy/10 bg-white p-6 shadow-sm">
           {product.brand ? (
-            <p>
-              {text.brand}:{" "}
-              <Link href={`/${locale}/brands/${product.brand.slug}`} className="underline underline-offset-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
+              <Link href={`/${locale}/brands/${product.brand.slug}`} className={`hover:underline ${focusLight}`}>
                 {product.brand.name}
               </Link>
             </p>
           ) : null}
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy">{product.name}</h1>
+          {product.translation_fallback ? <p className="text-sm text-navy/60">{text.fallback}</p> : null}
+          <p className="text-sm text-navy/80">
+            {text.model}: {product.model_display}
+            {product.option_label ? ` · ${product.option_label}` : ""}
+          </p>
           {product.category ? (
-            <p>
-              {text.category}:{" "}
+            <p className="text-sm">
+              <span className="text-navy/70">{text.category}: </span>
               <Link
                 href={categoryPath(locale, product.category.slug, product.category.parent_slug)}
-                className="underline underline-offset-4"
+                className={`font-medium text-brand underline-offset-4 hover:underline ${focusLight}`}
               >
                 {product.category.name}
               </Link>
             </p>
           ) : null}
-          <PriceLabel price={product.price} locale={locale} />
-          {product.out_of_stock ? <p className="font-medium text-red-800">{text.outOfStock}</p> : null}
-          <p>
-            <Link href={`/${locale}/catalog`} className="underline underline-offset-4">
+          <div className="border-t border-navy/10 pt-4">
+            <PriceLabel price={product.price} locale={locale} />
+          </div>
+          {product.out_of_stock ? <p className="text-sm font-medium text-red-800">{text.outOfStock}</p> : null}
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+            <Link
+              href={`/${locale}/contact`}
+              className={`inline-flex min-h-11 items-center justify-center bg-brand px-5 text-sm font-medium text-white hover:bg-navy ${focusLight}`}
+            >
+              {text.contact}
+            </Link>
+            <Link
+              href={`/${locale}/catalog`}
+              className={`inline-flex min-h-11 items-center justify-center border border-brand px-5 text-sm font-medium text-brand hover:bg-mist ${focusLight}`}
+            >
               {text.backToCatalog}
             </Link>
-          </p>
+          </div>
         </section>
       </div>
       {product.description ? (
-        <section className="max-w-3xl space-y-2">
-          <h2 className="text-xl font-semibold">{text.description}</h2>
-          {product.description_fallback ? <p className="text-sm text-slate-600">{text.fallback}</p> : null}
-          <p className="whitespace-pre-wrap leading-7">{product.description}</p>
+        <section className="max-w-3xl space-y-3">
+          <h2 className="text-xl font-semibold tracking-tight text-navy">{text.description}</h2>
+          {product.description_fallback ? <p className="text-sm text-navy/60">{text.fallback}</p> : null}
+          <p className="whitespace-pre-wrap leading-7 text-navy/80">{product.description}</p>
         </section>
       ) : null}
       {product.specifications.length ? (
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold">{text.specifications}</h2>
-          <table className="w-full border-collapse text-left text-sm">
-            <tbody>
-              {product.specifications.map((spec) => (
-                <tr key={`${spec.name}-${spec.value}`} className="border-t border-slate-200">
-                  <th scope="row" className="w-1/3 py-3 pr-4 font-medium">
-                    {spec.name}
-                    {spec.translation_fallback ? <span className="mt-1 block text-xs font-normal text-slate-600">{text.fallback}</span> : null}
-                  </th>
-                  <td className="py-3">{spec.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <h2 className="text-xl font-semibold tracking-tight text-navy">{text.specifications}</h2>
+          <div className="overflow-x-auto border border-navy/10 bg-white">
+            <table className="w-full min-w-[20rem] border-collapse text-left text-sm">
+              <tbody>
+                {product.specifications.map((spec) => (
+                  <tr key={`${spec.name}-${spec.value}`} className="border-t border-navy/10">
+                    <th scope="row" className="w-2/5 bg-mist px-4 py-3 font-medium text-navy">
+                      {spec.name}
+                      {spec.translation_fallback ? <span className="mt-1 block text-xs font-normal text-navy/60">{text.fallback}</span> : null}
+                    </th>
+                    <td className="px-4 py-3 text-navy/80">{spec.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
     </main>

@@ -49,16 +49,46 @@ def _allowed_origins(request: Request, settings: Settings) -> set[str]:
     site = _origin_of(settings.public_site_url)
     if site is not None:
         allowed.add(site)
+    scheme = _request_scheme(request, settings)
     host = request.headers.get("host")
-    if host:
-        if settings.trust_proxy:
-            forwarded = request.headers.get("x-forwarded-proto", request.url.scheme)
-            scheme = forwarded.split(",", 1)[0].strip().lower()
-        else:
-            scheme = request.url.scheme
-        if scheme in {"http", "https"}:
-            allowed.add(f"{scheme}://{host}")
+    if host and scheme is not None:
+        allowed.add(f"{scheme}://{host}")
+    # Next's API rewrite connects to Nginx with changeOrigin, so Host becomes
+    # the proxy hop (127.0.0.1:8080) while the browser Origin stays on the
+    # preview port. The rewrite records that browser host in X-Forwarded-Host.
+    if settings.trust_proxy and scheme is not None:
+        forwarded_host = _forwarded_host(request.headers.get("x-forwarded-host", ""))
+        if forwarded_host is not None:
+            allowed.add(f"{scheme}://{forwarded_host}")
     return allowed
+
+
+def _request_scheme(request: Request, settings: Settings) -> str | None:
+    if settings.trust_proxy:
+        forwarded = request.headers.get("x-forwarded-proto", request.url.scheme)
+        scheme = forwarded.split(",", 1)[0].strip().lower()
+    else:
+        scheme = request.url.scheme
+    if scheme in {"http", "https"}:
+        return scheme
+    return None
+
+
+def _forwarded_host(value: str) -> str | None:
+    host = value.split(",", 1)[0].strip()
+    if not host or any(character in host for character in " \t\r\n/@\\"):
+        return None
+    parsed = urlsplit(f"http://{host}")
+    if (
+        parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    return host
 
 
 def _origin_of(value: str) -> str | None:

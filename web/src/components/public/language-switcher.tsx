@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
+import { focusDark } from "@/components/public/brand-mark";
 import { PUBLIC_LOCALES, messages, type PublicLocale } from "@/lib/public-i18n";
 
 const labels: Record<PublicLocale, string> = {
@@ -17,21 +18,22 @@ export function LanguageSwitcher({ locale }: { locale: PublicLocale }) {
   const params = useSearchParams();
   const query = params.toString();
   return (
-    <nav aria-label={text.language} className="flex gap-2 text-sm">
+    <nav aria-label={text.language} className="flex flex-wrap items-center gap-1 text-sm">
       {PUBLIC_LOCALES.map((item) => {
         const parts = pathname.split("/");
         parts[1] = item;
         const path = parts.join("/") || `/${item}`;
         const href = query ? `${path}?${query}` : path;
+        const current = item === locale;
         return (
           <Link
             key={item}
             href={href}
             hrefLang={item}
             lang={item}
-            aria-current={item === locale ? "page" : undefined}
-            className={`rounded px-2 py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
-              item === locale ? "bg-white text-slate-950" : "text-white underline-offset-4 hover:underline"
+            aria-current={current ? "page" : undefined}
+            className={`inline-flex min-h-11 items-center justify-center px-3 ${focusDark} ${
+              current ? "bg-brand text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
             }`}
           >
             {labels[item]}

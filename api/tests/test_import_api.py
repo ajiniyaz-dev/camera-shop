@@ -300,9 +300,15 @@ def test_apply_prices_images_and_idempotency(client: TestClient, engine, media_r
     try:
         dealer = db.scalar(select(Product).where(Product.model_display == "CS-DP2C"))
         assert dealer is not None
+        assert dealer.product_kind == "product"
+        assert dealer.catalog_status == "published"
         assert dealer.public_price_amount == Decimal("92.50")
         assert dealer.public_currency == "USD"
         assert dealer.stock_status == "in_stock"
+        services = db.scalars(select(Product).where(Product.product_kind == "service")).all()
+        assert len(services) == 2
+        assert {item.catalog_status for item in services} == {"draft"}
+        assert {item.model_display for item in services} == {"7-дневная видеоистория событий"}
         blank = db.scalar(
             select(ProductSourceRecord).where(ProductSourceRecord.source_price_kind == "blank")
         )
@@ -313,7 +319,19 @@ def test_apply_prices_images_and_idempotency(client: TestClient, engine, media_r
         assert explicit is not None and explicit.source_price_amount is None
         priced = db.scalar(select(Product).where(Product.model_display == "HiLook IPC-1"))
         assert priced is not None
+        assert priced.product_kind == "product"
+        assert priced.catalog_status == "published"
         assert priced.public_price_amount == Decimal("115.00")
+        priced_ru = next(item for item in priced.translations if item.locale == "ru")
+        assert priced_ru.localized_name == "HiLook IPC-1"
+        assert priced_ru.description == "уличная камера"
+        assert {item.locale for item in priced.translations} == {"ru"}
+        for service in services:
+            service_ru = next(item for item in service.translations if item.locale == "ru")
+            assert service_ru.localized_name == service.model_display
+            assert service.option_label in {"Ежемесячно:", "Ежегодно:"}
+            assert service_ru.localized_name != service.option_label
+            assert {item.locale for item in service.translations} == {"ru"}
         assert db.scalar(select(func.count()).select_from(ProductImage).where(ProductImage.product_id == priced.id)) >= 1
         source = db.scalar(select(ProductSourceRecord).where(ProductSourceRecord.product_id == priced.id))
         assert source is not None
@@ -328,6 +346,108 @@ def test_apply_prices_images_and_idempotency(client: TestClient, engine, media_r
     db = Session(bind=engine)
     try:
         assert db.scalar(select(func.count()).select_from(Product).where(Product.model_display == "HiLook IPC-1")) == 1
+    finally:
+        db.close()
+
+
+def test_publish_new_products_false_inserts_equipment_as_draft(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(path)
+    created = _upload(client, headers, path, publish_new_products="false", replace_prices="false")
+    assert created.status_code == 200
+    assert created.json()["publish_new_products"] is False
+    assert created.json()["replace_prices"] is False
+    applied = client.post(
+        f"/api/admin/imports/{created.json()['id']}/apply",
+        json={"confirm": True},
+        headers=headers,
+    )
+    assert applied.status_code == 200
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product).where(Product.model_display == "Hikvision NVR-1"))
+        assert product is not None
+        assert product.product_kind == "product"
+        assert product.catalog_status == "draft"
+        assert product.public_price_amount == Decimal("40.00")
+        russian = next(item for item in product.translations if item.locale == "ru")
+        assert russian.localized_name == "Hikvision NVR-1"
+        assert russian.description == "регистратор"
+        assert russian.origin == "source"
+        assert {item.locale for item in product.translations} == {"ru"}
+    finally:
+        db.close()
+
+
+def test_source_localized_name_uses_the_model_and_skips_a_blank_model() -> None:
+    from app.importing.apply import _source_localized_name
+
+    assert _source_localized_name({"model_display": " 12V 10A "}) == "12V 10A"
+    assert _source_localized_name({"model_display": "   "}) is None
+    assert _source_localized_name({"model_display": None}) is None
+
+
+def test_reapply_keeps_a_manual_name_and_fills_a_blank_source_name(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(path)
+
+    def apply_workbook(price: int) -> None:
+        single_hikvision_row(path, price=price)
+        created = _upload(client, headers, path, publish_new_products="false", replace_prices="false")
+        assert created.status_code == 200
+        applied = client.post(
+            f"/api/admin/imports/{created.json()['id']}/apply",
+            json={"confirm": True},
+            headers=headers,
+        )
+        assert applied.status_code == 200
+
+    apply_workbook(40)
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product).where(Product.model_display == "Hikvision NVR-1"))
+        assert product is not None
+        russian = next(item for item in product.translations if item.locale == "ru")
+        russian.localized_name = "Staff title"
+        russian.origin = "manual"
+        db.commit()
+        product_id = product.id
+    finally:
+        db.close()
+    apply_workbook(55)
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        assert db.scalar(select(func.count()).select_from(Product)) == 1
+        russian = next(item for item in product.translations if item.locale == "ru")
+        assert russian.localized_name == "Staff title"
+        assert russian.description == "регистратор"
+        assert product.public_price_amount == Decimal("55.00")
+        russian.localized_name = None
+        russian.origin = "source"
+        db.commit()
+    finally:
+        db.close()
+    apply_workbook(60)
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        russian = next(item for item in product.translations if item.locale == "ru")
+        assert russian.localized_name == "Hikvision NVR-1"
+        assert russian.description == "регистратор"
+        assert product.model_raw == "Hikvision NVR-1"
+        assert product.public_price_amount == Decimal("60.00")
+        assert {item.locale for item in product.translations} == {"ru"}
     finally:
         db.close()
 

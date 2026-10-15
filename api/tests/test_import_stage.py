@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.importing.apply import _BrandBook, _CategoryBook, _update_product
 from app.importing.stage import SourceInput, StagingError, stage_import
 from app.models import (
     AdminUser,
@@ -445,3 +447,209 @@ def test_media_root_cannot_be_the_source_directory(db: Session, tmp_path: Path) 
     job = _job(db)
     with pytest.raises(StagingError):
         stage_import(db, job, [SourceInput(path, path.name)], source_dir)
+
+
+def test_import_keeps_a_real_brand_when_the_row_proposes_other(db: Session) -> None:
+    hikvision = Brand(slug="hikvision", is_published=True)
+    hikvision.translations.append(BrandTranslation(locale="ru", name="Hikvision"))
+    db.add(hikvision)
+    db.flush()
+    product = Product(
+        brand_id=hikvision.id,
+        product_kind="product",
+        model_raw="DS-1",
+        model_display="DS-1",
+        model_normalized="ds-1",
+        public_price_status="on_request",
+        slug="ds-1",
+        catalog_status="draft",
+        brand_locked=False,
+    )
+    db.add(product)
+    job = _job(db)
+    source = ImportFile(
+        job_id=job.id,
+        source_code="hikvision",
+        original_filename="Hikvision pr.xlsx",
+        sha256="a" * 64,
+        stored_object_key="imports/1/hikvision.xlsx",
+    )
+    db.add(source)
+    db.flush()
+    row = ImportRow(
+        import_file_id=source.id,
+        worksheet_name="HDD",
+        source_row=2,
+        classification="product",
+        action="update",
+        resolution="keep_current",
+        raw_cells={},
+        proposal={"brand": "Other", "field_changes": ["brand"], "field_resolutions": {"brand": "accept_excel"}},
+        messages=[],
+    )
+    db.add(row)
+    db.flush()
+    brands = _BrandBook(db)
+    assert brands.ensure("Other", True) is None
+    assert brands.ensure("Другие", False) is None
+    assert brands.ensure("Boshqalar", True) is None
+    assert brands.ensure(None, True) is None
+    assert brands.ensure("Hikvision", True) == hikvision.id
+    assert brands.ensure("Hikvision", False) == hikvision.id
+    assert db.scalar(select(func.count()).select_from(Brand)) == 1
+    _update_product(product, row, brands, _CategoryBook(db, publish=False), datetime.now(timezone.utc))
+    db.flush()
+    assert product.brand_id == hikvision.id
+    assert db.scalar(select(func.count()).select_from(Brand)) == 1
+
+    row.proposal = {"brand": None, "field_changes": ["brand"], "field_resolutions": {"brand": "accept_excel"}}
+    _update_product(product, row, _BrandBook(db), _CategoryBook(db, publish=False), datetime.now(timezone.utc))
+    db.flush()
+    assert product.brand_id is None
+    assert db.scalar(select(func.count()).select_from(Brand)) == 1
+
+    other = Brand(slug="other", is_published=True)
+    other.translations.append(BrandTranslation(locale="ru", name="Другие"))
+    db.add(other)
+    db.flush()
+    grouped = Product(
+        brand_id=other.id,
+        product_kind="product",
+        model_raw="BNC",
+        model_display="BNC",
+        model_normalized="bnc",
+        public_price_status="numeric",
+        public_price_amount=Decimal("1.00"),
+        public_currency="USD",
+        slug="bnc",
+        catalog_status="draft",
+    )
+    db.add(grouped)
+    confirmed = ImportRow(
+        import_file_id=source.id,
+        worksheet_name="HDD",
+        source_row=3,
+        classification="product",
+        action="update",
+        resolution="keep_current",
+        raw_cells={},
+        proposal={"brand": "Hikvision", "field_changes": ["brand"], "field_resolutions": {"brand": "accept_excel"}},
+        messages=[],
+    )
+    db.add(confirmed)
+    db.flush()
+    _update_product(grouped, confirmed, _BrandBook(db), _CategoryBook(db, publish=False), datetime.now(timezone.utc))
+    db.flush()
+    assert grouped.brand_id == hikvision.id
+    assert db.scalar(select(func.count()).select_from(Brand)) == 2
+
+
+def test_blank_import_brand_does_not_remove_an_assigned_other_brand(db: Session) -> None:
+    hikvision = Brand(slug="hikvision", is_published=True)
+    hikvision.translations.append(BrandTranslation(locale="ru", name="Hikvision"))
+    other = Brand(slug="other", is_published=True)
+    other.translations.append(BrandTranslation(locale="ru", name="Другие"))
+    other.translations.append(BrandTranslation(locale="en", name="Other"))
+    db.add_all([hikvision, other])
+    db.flush()
+    grouped = Product(
+        brand_id=other.id,
+        product_kind="product",
+        model_raw="BNC",
+        model_display="BNC",
+        model_normalized="bnc",
+        public_price_status="on_request",
+        slug="bnc",
+        catalog_status="draft",
+        brand_locked=False,
+    )
+    locked_real = Product(
+        brand_id=hikvision.id,
+        product_kind="product",
+        model_raw="DS-2",
+        model_display="DS-2",
+        model_normalized="ds-2",
+        public_price_status="on_request",
+        slug="ds-2",
+        catalog_status="draft",
+        brand_locked=True,
+    )
+    locked_other = Product(
+        brand_id=other.id,
+        product_kind="product",
+        model_raw="BNC-2",
+        model_display="BNC-2",
+        model_normalized="bnc-2",
+        public_price_status="on_request",
+        slug="bnc-2",
+        catalog_status="draft",
+        brand_locked=True,
+    )
+    db.add_all([grouped, locked_real, locked_other])
+    job = _job(db)
+    source = ImportFile(
+        job_id=job.id,
+        source_code="hikvision",
+        original_filename="Hikvision pr.xlsx",
+        sha256="b" * 64,
+        stored_object_key="imports/2/hikvision.xlsx",
+    )
+    db.add(source)
+    db.flush()
+
+    def row_for(source_row: int, brand: str | None, *, resolution: str, decision: str) -> ImportRow:
+        item = ImportRow(
+            import_file_id=source.id,
+            worksheet_name="HDD",
+            source_row=source_row,
+            classification="product",
+            action="update",
+            resolution=resolution,
+            raw_cells={},
+            proposal={
+                "brand": brand,
+                "field_changes": ["brand"],
+                "field_resolutions": {
+                    "brand": decision,
+                    "model_display": "keep_current",
+                    "option_label": "keep_current",
+                    "public_price": "keep_current",
+                    "description": "keep_current",
+                    "category": "keep_current",
+                },
+            },
+            messages=[{"code": "brand_unverified"}] if brand is None else [],
+        )
+        db.add(item)
+        return item
+
+    missing = row_for(4, None, resolution="accept_excel", decision="accept_excel")
+    blank = row_for(5, "  ", resolution="accept_excel", decision="accept_excel")
+    labeled = row_for(6, "Other", resolution="accept_excel", decision="accept_excel")
+    kept_real = row_for(7, None, resolution="keep_current", decision="keep_current")
+    kept_other = row_for(8, "Hikvision", resolution="keep_current", decision="keep_current")
+    db.flush()
+    brands = _BrandBook(db)
+    categories = _CategoryBook(db, publish=False)
+    now = datetime.now(timezone.utc)
+    assert brands.ensure("Other", True) is None
+    assert db.scalar(select(func.count()).select_from(Brand)) == 2
+
+    _update_product(grouped, missing, brands, categories, now)
+    _update_product(grouped, blank, brands, categories, now)
+    _update_product(grouped, labeled, brands, categories, now)
+    db.flush()
+    assert grouped.brand_id == other.id
+
+    _update_product(locked_real, kept_real, brands, categories, now)
+    _update_product(locked_other, kept_other, brands, categories, now)
+    db.flush()
+    assert locked_real.brand_id == hikvision.id
+    assert locked_other.brand_id == other.id
+
+    approved = row_for(9, "Hikvision", resolution="keep_current", decision="accept_excel")
+    db.flush()
+    _update_product(grouped, approved, _BrandBook(db), categories, now)
+    db.flush()
+    assert grouped.brand_id == hikvision.id
+    assert db.scalar(select(func.count()).select_from(Brand)) == 2

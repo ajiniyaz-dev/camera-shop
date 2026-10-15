@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { schemaBrand } from "@/lib/other-brand";
 import type { Company, PublicDetail, PublicImage, SearchParams } from "@/lib/public-api";
 import { messages, PUBLIC_LOCALES, type PublicLocale } from "@/lib/public-i18n";
 
@@ -220,8 +221,9 @@ export function productJson(product: PublicDetail): Record<string, unknown> {
     name: product.name,
     sku: product.slug,
   };
-  if (product.brand) {
-    body.brand = { "@type": "Brand", name: product.brand.name };
+  const manufacturer = schemaBrand(product.brand);
+  if (manufacturer) {
+    body.brand = manufacturer;
   }
   if (product.category) {
     body.category = product.category.name;

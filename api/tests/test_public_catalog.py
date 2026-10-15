@@ -612,3 +612,90 @@ def test_sitemap_lists_published_pages_only(client: TestClient, engine) -> None:
     cameras = client.get("/api/public/categories/cameras", params={"locale": "en"})
     assert cameras.json()["seo_title"] is None
     assert client.get("/api/public/categories/cameras", params={"locale": "ru"}).json()["seo_title"] == "Камеры SEO"
+
+
+def test_other_brand_is_public_only_with_a_published_product(client: TestClient, engine) -> None:
+    _seed(engine)
+    db = Session(bind=engine)
+    try:
+        other = Brand(slug="other", is_published=True)
+        other.translations.extend(
+            [
+                BrandTranslation(locale="ru", name="Другие"),
+                BrandTranslation(locale="uz", name="Boshqalar"),
+                BrandTranslation(locale="en", name="Other"),
+            ]
+        )
+        vacant = Brand(slug="drugie", is_published=True)
+        vacant.translations.append(BrandTranslation(locale="ru", name="Другие"))
+        spare = Brand(slug="spare", is_published=True)
+        spare.translations.append(BrandTranslation(locale="en", name="Spare"))
+        db.add_all([other, vacant, spare])
+        db.flush()
+        assigned = _product(
+            db,
+            slug="grouped-cam",
+            model_display="BNC-1",
+            brand_id=other.id,
+            catalog_status="published",
+        )
+        _translation(assigned, "ru", None, "Разъём")
+        _translation(assigned, "en", None, "Connector")
+        bare = _product(db, slug="unbranded-cam", model_display="BNC-2", catalog_status="published")
+        _translation(bare, "en", None, "Loose connector")
+        draft = _product(
+            db,
+            slug="grouped-draft",
+            model_display="BNC-3",
+            brand_id=vacant.id,
+            catalog_status="draft",
+        )
+        _translation(draft, "ru", None, "Черновик")
+        db.commit()
+    finally:
+        db.close()
+
+    listing = client.get("/api/public/products", params={"locale": "en"})
+    assert listing.status_code == 200
+    names = {item["slug"]: item["name"] for item in listing.json()["brands"]}
+    assert names["hikvision"] == "Hikvision"
+    assert names["other"] == "Other"
+    assert names["spare"] == "Spare"
+    assert "drugie" not in names
+    assert "quiet" not in names
+    filtered = client.get("/api/public/products", params={"locale": "en", "brand": "other"})
+    assert filtered.status_code == 200
+    assert [item["slug"] for item in filtered.json()["products"]] == ["grouped-cam"]
+    assert filtered.json()["products"][0]["brand"] == {
+        "slug": "other",
+        "name": "Other",
+        "description": None,
+        "translation_fallback": False,
+        "description_fallback": False,
+    }
+    hikvision = client.get("/api/public/products", params={"locale": "ru", "brand": "hikvision"})
+    hikvision_slugs = {item["slug"] for item in hikvision.json()["products"]}
+    assert "child-cam" in hikvision_slugs
+    assert "grouped-cam" not in hikvision_slugs
+    assert client.get("/api/public/products", params={"locale": "en", "brand": "drugie"}).status_code == 404
+    detail = client.get("/api/public/brands/other", params={"locale": "en"})
+    assert detail.status_code == 200
+    assert detail.json()["name"] == "Other"
+    assert detail.json()["description"] is None
+    assert detail.json()["seo_title"] is None
+    assert detail.json()["seo_description"] is None
+    assert client.get("/api/public/brands/other", params={"locale": "ru"}).json()["name"] == "Другие"
+    assert client.get("/api/public/brands/other", params={"locale": "uz"}).json()["name"] == "Boshqalar"
+    assert client.get("/api/public/brands/drugie", params={"locale": "ru"}).status_code == 404
+    grouped = client.get("/api/public/products/grouped-cam", params={"locale": "en"}).json()
+    assert grouped["brand"]["slug"] == "other"
+    assert grouped["description"] == "Connector"
+    bare_body = client.get("/api/public/products/unbranded-cam", params={"locale": "en"}).json()
+    assert bare_body["brand"] is None
+    real = client.get("/api/public/products/child-cam", params={"locale": "en"}).json()
+    assert real["brand"]["slug"] == "hikvision"
+    paths = [item["path"] for item in client.get("/api/public/sitemap").json()["entries"]]
+    assert "/en/brands/other" in paths
+    assert "/en/brands/spare" in paths
+    assert "/en/brands/hikvision" in paths
+    assert not any(path.endswith("/brands/drugie") for path in paths)

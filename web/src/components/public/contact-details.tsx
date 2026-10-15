@@ -1,3 +1,4 @@
+import { AccentBar, focusLight } from "@/components/public/brand-mark";
 import type { Company } from "@/lib/public-api";
 import { messages, type PublicLocale } from "@/lib/public-i18n";
 
@@ -16,39 +17,42 @@ export function ContactDetails({ company, locale }: { company: Company; locale: 
   const fields = contactFields(company, locale);
   if (!fields.length && !company.social_links?.length) return null;
   return (
-    <section className="space-y-3" aria-labelledby="contact-heading">
-      <h2 id="contact-heading" className="text-xl font-semibold">
-        {text.contact}
-      </h2>
-      {fields.length ? (
-        <dl className="space-y-2">
-          {fields.map((field) => (
-            <div key={field.label}>
-              <dt className="text-sm text-slate-600">{field.label}</dt>
-              <dd>
-                {field.href ? (
-                  <a className="underline underline-offset-4" href={field.href}>
-                    {field.value}
-                  </a>
-                ) : (
-                  field.value
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      {company.social_links?.length ? (
-        <ul className="flex flex-wrap gap-4">
-          {company.social_links.map((link) => (
-            <li key={link.url}>
-              <a className="underline underline-offset-4" href={link.url}>
-                {link.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+    <section className="overflow-hidden rounded-md border border-navy/10 bg-white shadow-sm" aria-labelledby="contact-heading">
+      <AccentBar />
+      <div className="p-6 sm:p-8">
+        <h2 id="contact-heading" className="text-2xl font-semibold tracking-tight text-navy">
+          {text.contact}
+        </h2>
+        {fields.length ? (
+          <dl className="mt-6 grid gap-5 border-t border-navy/10 pt-6 sm:grid-cols-2">
+            {fields.map((field) => (
+              <div key={field.label}>
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">{field.label}</dt>
+                <dd className="mt-1 text-navy">
+                  {field.href ? (
+                    <a className={`underline-offset-4 hover:underline ${focusLight}`} href={field.href}>
+                      {field.value}
+                    </a>
+                  ) : (
+                    field.value
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {company.social_links?.length ? (
+          <ul className="mt-6 flex flex-wrap gap-4">
+            {company.social_links.map((link) => (
+              <li key={link.url}>
+                <a className={`text-brand underline underline-offset-4 ${focusLight}`} href={link.url}>
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </section>
   );
 }

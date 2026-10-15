@@ -398,10 +398,22 @@ export function ProductEditor({ productId }: { productId?: number }) {
               {translate(locale, "uploadImage")}
               <input name="file" type="file" accept="image/png,image/jpeg,image/webp" required className="mt-1 block" />
             </label>
-            <label className="text-sm">
-              {translate(locale, "altText")}
-              <input name="alt_text" value={alt} onChange={(event) => setAlt(event.target.value)} className={field} />
-            </label>
+            <div className="text-sm">
+              <label>
+                {translate(locale, "altText")}
+                <input
+                  id="product-image-alt"
+                  name="alt_text"
+                  value={alt}
+                  onChange={(event) => setAlt(event.target.value)}
+                  aria-describedby="product-image-alt-hint"
+                  className={field}
+                />
+              </label>
+              <p id="product-image-alt-hint" className="mt-1 max-w-xs text-xs text-neutral-500">
+                {translate(locale, "altTextHint")}
+              </p>
+            </div>
             <button type="submit" className="rounded border border-neutral-300 px-3 py-2 text-sm">
               {translate(locale, "save")}
             </button>

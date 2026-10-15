@@ -22,6 +22,7 @@ export function LoginForm({ locale }: { locale: Locale }) {
       await adminJson("/api/auth/login", { method: "POST" }, { email, password });
       router.replace("/admin");
     } catch (error) {
+      setPassword("");
       setMessage(error instanceof ApiError ? error.message : translate(locale, "error"));
     } finally {
       setPending(false);

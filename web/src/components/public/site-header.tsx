@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { AccentBar, BrandMark, focusDark } from "@/components/public/brand-mark";
 import { LanguageSwitcher } from "@/components/public/language-switcher";
+import { SiteNav } from "@/components/public/site-nav";
 import type { Company } from "@/lib/public-api";
 import { PUBLIC_LOCALES, messages, type PublicLocale } from "@/lib/public-i18n";
 
@@ -14,87 +16,55 @@ export function SiteHeader({ locale, company }: { locale: PublicLocale; company:
     { href: `/${locale}/contact`, label: text.contact },
   ];
   return (
-    <header className="bg-slate-950 text-white">
+    <header className="bg-navy text-white">
       <a
-        href={`#content`}
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-10 focus:rounded focus:bg-white focus:px-3 focus:py-2 focus:text-slate-950"
+        href="#content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-10 focus:bg-white focus:px-3 focus:py-2 focus:text-navy focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-brand"
       >
         {text.skip}
       </a>
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
-        <Link
-          href={`/${locale}`}
-          className="text-lg font-semibold tracking-tight focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          {company.name}
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+        <Link href={`/${locale}`} className={`inline-flex min-h-11 items-center gap-3 ${focusDark}`}>
+          <BrandMark />
+          <span className="text-base font-semibold tracking-wide">{company.name}</span>
         </Link>
-        <Suspense
-          fallback={
-            <nav aria-label={text.language} className="flex gap-2 text-sm">
-              {PUBLIC_LOCALES.map((item) => (
-                <a key={item} href={`/${item}`} hrefLang={item} lang={item} className="rounded px-2 py-1 text-white">
-                  {item === "ru" ? "Русский" : item === "uz" ? "Oʻzbekcha" : "English"}
-                </a>
-              ))}
-            </nav>
-          }
-        >
-          <LanguageSwitcher locale={locale} />
-        </Suspense>
+        <div className="hidden min-w-0 flex-1 md:block">
+          <SiteNav links={links} label={text.menu} />
+        </div>
+        <div className="ml-auto md:ml-0">
+          <Suspense
+            fallback={
+              <nav aria-label={text.language} className="flex flex-wrap gap-1 text-sm">
+                {PUBLIC_LOCALES.map((item) => (
+                  <a
+                    key={item}
+                    href={`/${item}`}
+                    hrefLang={item}
+                    lang={item}
+                    className={`inline-flex min-h-11 items-center px-3 text-white ${focusDark}`}
+                  >
+                    {item === "ru" ? "Русский" : item === "uz" ? "Oʻzbekcha" : "English"}
+                  </a>
+                ))}
+              </nav>
+            }
+          >
+            <LanguageSwitcher locale={locale} />
+          </Suspense>
+        </div>
       </div>
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 pb-4 md:flex-row md:items-center md:justify-between">
-        <details className="md:hidden">
-          <summary className="cursor-pointer rounded px-2 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+      <div className="mx-auto max-w-6xl px-4 pb-2 md:hidden">
+        <details className="border-t border-white/10 [&:not([open])>:not(summary)]:hidden">
+          <summary
+            className={`flex min-h-11 cursor-pointer list-none items-center gap-3 text-sm text-white [&::-webkit-details-marker]:hidden ${focusDark}`}
+          >
+            <span aria-hidden="true" className="h-px w-4 bg-teal" />
             {text.menu}
           </summary>
-          <NavLinks links={links} label={text.menu} />
+          <SiteNav links={links} label={text.menu} />
         </details>
-        <div className="hidden md:block">
-          <NavLinks links={links} label={text.menu} />
-        </div>
-        <SearchForm locale={locale} />
       </div>
+      <AccentBar />
     </header>
-  );
-}
-
-function NavLinks({ links, label }: { links: Array<{ href: string; label: string }>; label: string }) {
-  return (
-    <nav aria-label={label} className="mt-3 flex flex-col gap-2 md:mt-0 md:flex-row md:gap-4">
-      {links.map((link) => (
-        <Link
-          key={link.href}
-          href={link.href}
-          className="rounded px-2 py-1 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          {link.label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
-function SearchForm({ locale }: { locale: PublicLocale }) {
-  const text = messages[locale];
-  return (
-    <form action={`/${locale}/search`} method="get" role="search" className="flex gap-2">
-      <label className="sr-only" htmlFor={`search-${locale}`}>
-        {text.search}
-      </label>
-      <input
-        id={`search-${locale}`}
-        name="q"
-        type="search"
-        maxLength={80}
-        placeholder={text.searchPlaceholder}
-        className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-800 md:w-64"
-      />
-      <button
-        type="submit"
-        className="rounded bg-white px-3 py-2 text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-      >
-        {text.search}
-      </button>
-    </form>
   );
 }

@@ -10,6 +10,7 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.dependencies import get_db
+from app.brand_groups import is_other_brand
 from app.models import (
     Brand,
     Category,
@@ -84,6 +85,35 @@ def _stamp(value: datetime | None) -> str | None:
 
 def _published_filter():
     return and_(Product.catalog_status == "published", Product.deleted_at.is_(None))
+
+
+def _other_without_published_products(db: Session, brands: list[Brand]) -> set[int]:
+    other_ids = [
+        brand.id
+        for brand in brands
+        if is_other_brand(brand.slug, [item.name for item in brand.translations])
+    ]
+    if not other_ids:
+        return set()
+    populated = set(
+        db.scalars(
+            select(Product.brand_id).where(Product.brand_id.in_(other_ids), _published_filter())
+        ).all()
+    )
+    return {brand_id for brand_id in other_ids if brand_id not in populated}
+
+
+def _navigable_brands(db: Session) -> list[Brand]:
+    brands = list(
+        db.scalars(
+            select(Brand)
+            .where(Brand.is_published.is_(True))
+            .options(selectinload(Brand.translations))
+            .order_by(Brand.slug, Brand.id)
+        ).all()
+    )
+    hidden = _other_without_published_products(db, brands)
+    return [brand for brand in brands if brand.id not in hidden]
 
 
 def _product_options():
@@ -441,6 +471,8 @@ def brand_detail(slug: str, locale: str = Query(), db: Session = Depends(get_db)
     )
     if brand is None:
         raise HTTPException(status_code=404, detail="Brand not found.")
+    if brand.id in _other_without_published_products(db, [brand]):
+        raise HTTPException(status_code=404, detail="Brand not found.")
     public = _brand(brand, selected)
     if public is None:
         return {}
@@ -491,10 +523,14 @@ def products(
         matched = _find_category(index, category, _clean(parent))
         filters.append(Product.category_id.in_(_descendant_ids(index, matched.id)))
     if brand:
-        matched_brand = db.scalar(select(Brand.id).where(Brand.slug == brand, Brand.is_published.is_(True)))
-        if matched_brand is None:
+        matched_brand = db.scalar(
+            select(Brand)
+            .where(Brand.slug == brand, Brand.is_published.is_(True))
+            .options(selectinload(Brand.translations))
+        )
+        if matched_brand is None or matched_brand.id in _other_without_published_products(db, [matched_brand]):
             raise HTTPException(status_code=404, detail="Brand not found.")
-        filters.append(Product.brand_id == matched_brand)
+        filters.append(Product.brand_id == matched_brand.id)
     if low is not None or high is not None:
         filters.append(Product.public_price_status == "numeric")
         if low is not None:
@@ -525,9 +561,7 @@ def products(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
-    brands = db.scalars(
-        select(Brand).where(Brand.is_published.is_(True)).options(selectinload(Brand.translations)).order_by(Brand.slug, Brand.id)
-    ).all()
+    brands = _navigable_brands(db)
     return {
         "locale": selected,
         "page": page,
@@ -605,7 +639,7 @@ def public_sitemap(db: Session = Depends(get_db)) -> dict[str, object]:
         if suffix is None:
             continue
         entries.extend(_localized_entries(suffix, _stamp(category.updated_at)))
-    brands = db.scalars(select(Brand).where(Brand.is_published.is_(True)).order_by(Brand.slug, Brand.id)).all()
+    brands = _navigable_brands(db)
     for brand in brands:
         entries.extend(_localized_entries(f"/brands/{brand.slug}", _stamp(brand.updated_at)))
     products = db.scalars(

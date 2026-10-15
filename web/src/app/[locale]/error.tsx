@@ -10,12 +10,12 @@ export default function CatalogError({ reset }: { error: Error; reset: () => voi
   const text = messages[locale];
   return (
     <main className="space-y-4 py-8">
-      <h1 className="text-2xl font-semibold">{text.error}</h1>
-      <p role="alert">{text.error}</p>
+      <h1 className="text-2xl font-semibold text-navy">{text.error}</h1>
+      <p role="alert" className="text-navy/70">{text.error}</p>
       <button
         type="button"
         onClick={reset}
-        className="rounded bg-slate-950 px-4 py-2 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-800"
+        className="inline-flex min-h-11 items-center bg-brand px-5 text-sm font-medium text-white hover:bg-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
         {text.retry}
       </button>

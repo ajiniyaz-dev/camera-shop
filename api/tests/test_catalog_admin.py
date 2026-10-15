@@ -201,6 +201,44 @@ def test_prices_stay_distinct_from_stock_and_zero(client: TestClient, engine) ->
     assert len(listed.json()["products"]) == 1
 
 
+def test_product_search_matches_exact_id_and_model(client: TestClient, engine) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    alpha = client.post("/api/admin/products", json=_product("Alpha Camera"), headers=headers)
+    beta = client.post("/api/admin/products", json=_product("Beta Recorder"), headers=headers)
+    numbered = client.post("/api/admin/products", json=_product("Series 2047"), headers=headers)
+    assert alpha.status_code == beta.status_code == numbered.status_code == 201
+    alpha_id = alpha.json()["id"]
+    beta_id = beta.json()["id"]
+
+    by_model = client.get("/api/admin/products", params={"q": "Recorder"})
+    assert by_model.status_code == 200
+    assert by_model.json()["total"] == 1
+    assert [item["id"] for item in by_model.json()["products"]] == [beta_id]
+
+    by_id = client.get("/api/admin/products", params={"q": str(alpha_id), "catalog_status": "draft"})
+    assert by_id.status_code == 200
+    assert by_id.json()["total"] == 1
+    assert by_id.json()["products"][0]["id"] == alpha_id
+    assert by_id.json()["products"][0]["model_display"] == "Alpha Camera"
+
+    hidden_by_status = client.get(
+        "/api/admin/products",
+        params={"q": str(alpha_id), "catalog_status": "published"},
+    )
+    assert hidden_by_status.json()["total"] == 0
+
+    by_fragment = client.get("/api/admin/products", params={"q": "2047"})
+    assert by_fragment.json()["total"] == 1
+    assert by_fragment.json()["products"][0]["id"] == numbered.json()["id"]
+
+    padded = client.get("/api/admin/products", params={"q": f"0{alpha_id}"})
+    assert padded.json()["total"] == 0
+
+    missing = client.get("/api/admin/products", params={"q": "999999"})
+    assert missing.json()["total"] == 0
+
+
 def test_dashboard_profile_and_image(client: TestClient, engine) -> None:
     _seed(engine)
     headers = _auth(client)
@@ -311,3 +349,58 @@ def test_archive_brand_category_images_and_import_list(client: TestClient, engin
         headers=headers,
     )
     assert rejected.status_code == 422
+
+
+def test_other_brand_is_created_once_and_assigned_only_when_chosen(client: TestClient, engine) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    hikvision = client.post(
+        "/api/admin/brands",
+        json={"name_ru": "Hikvision", "name_en": "Hikvision", "is_published": True},
+        headers=headers,
+    )
+    assert hikvision.status_code == 201
+    assert hikvision.json()["slug"] == "hikvision"
+    other_body = {
+        "name_ru": "Другие",
+        "name_uz": "Boshqalar",
+        "name_en": "Other",
+        "is_published": False,
+    }
+    other = client.post("/api/admin/brands", json=other_body, headers=headers)
+    assert other.status_code == 201
+    assert other.json()["slug"] == "other"
+    assert other.json()["name_ru"] == "Другие"
+    assert other.json()["name_uz"] == "Boshqalar"
+    assert other.json()["name_en"] == "Other"
+    assert other.json()["description_ru"] is None
+    assert other.json()["is_published"] is False
+    repeat = client.post(
+        "/api/admin/brands",
+        json={**other_body, "is_published": True, "description_ru": "A manufacturer"},
+        headers=headers,
+    )
+    assert repeat.status_code == 201
+    assert repeat.json()["id"] == other.json()["id"]
+    assert repeat.json()["is_published"] is False
+    assert repeat.json()["description_ru"] is None
+    listed = client.get("/api/admin/brands", headers=headers)
+    assert listed.status_code == 200
+    assert [item["slug"] for item in listed.json()["brands"]].count("other") == 1
+    real = client.post(
+        "/api/admin/products",
+        json=_product("DS-HIK", brand_id=hikvision.json()["id"]),
+        headers=headers,
+    )
+    grouped = client.post(
+        "/api/admin/products",
+        json=_product("DS-OTHER", brand_id=other.json()["id"]),
+        headers=headers,
+    )
+    bare = client.post("/api/admin/products", json=_product("DS-BARE"), headers=headers)
+    assert real.status_code == 201
+    assert grouped.status_code == 201
+    assert bare.status_code == 201
+    assert real.json()["brand_id"] == hikvision.json()["id"]
+    assert grouped.json()["brand_id"] == other.json()["id"]
+    assert bare.json()["brand_id"] is None

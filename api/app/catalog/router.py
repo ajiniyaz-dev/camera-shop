@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.csrf import client_address
+from app.brand_groups import OTHER_BRAND_SLUG, is_other_brand, is_other_brand_name
 from app.auth.dependencies import get_db, get_settings_from_request, require_admin, require_admin_write
 from app.config import Settings
 from app.importing.images import object_key, sniff_image
@@ -45,6 +46,7 @@ from app.models import (
 router = APIRouter(prefix="/api/admin", tags=["catalog"])
 _LOCALES = ("ru", "uz", "en")
 _PAGE_MAX = 100
+_PRODUCT_ID_MAX = 9_223_372_036_854_775_807
 _IMAGE_MAX_BYTES = 8 * 1024 * 1024
 _MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
 
@@ -123,6 +125,20 @@ class ProfileWrite(BaseModel):
     social_links: list[SocialLink] = Field(default_factory=list, max_length=8)
 
 
+def _exact_product_id(value: str) -> int | None:
+    """Return a product id only when the query is that id's exact decimal form."""
+    if not value.isascii() or not value.isdigit():
+        return None
+    if len(value) > 1 and value.startswith("0"):
+        return None
+    if len(value) > 19:
+        return None
+    number = int(value)
+    if number > _PRODUCT_ID_MAX:
+        return None
+    return number
+
+
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
 
@@ -195,16 +211,19 @@ def list_products(
     if category_id is not None:
         filters.append(Product.category_id == category_id)
     if q and q.strip():
-        term = f"%{q.strip().replace('%', '').replace('_', '')}%"
-        filters.append(
-            or_(
-                Product.model_display.ilike(term),
-                Product.option_label.ilike(term),
-                Product.id.in_(
-                    select(ProductTranslation.product_id).where(ProductTranslation.description.ilike(term))
-                ),
-            )
-        )
+        text = q.strip()
+        term = f"%{text.replace('%', '').replace('_', '')}%"
+        clauses = [
+            Product.model_display.ilike(term),
+            Product.option_label.ilike(term),
+            Product.id.in_(
+                select(ProductTranslation.product_id).where(ProductTranslation.description.ilike(term))
+            ),
+        ]
+        product_id = _exact_product_id(text)
+        if product_id is not None:
+            clauses.append(Product.id == product_id)
+        filters.append(or_(*clauses))
     total = db.scalar(select(func.count()).select_from(Product).where(*filters)) or 0
     order = {
         "model": Product.model_display.asc(),
@@ -486,8 +505,13 @@ def create_brand(
     settings: Settings = Depends(get_settings_from_request),
 ) -> dict[str, object]:
     _no_store(response)
+    if _other_brand_requested(body):
+        existing = _find_other_brand(db)
+        if existing is not None:
+            return _brand_public(existing)
     taken = set(db.scalars(select(Brand.slug)).all())
-    brand = Brand(slug=allocate_slug(slug_part(body.name_ru), taken), is_published=body.is_published)
+    slug_base = OTHER_BRAND_SLUG if _other_brand_requested(body) else slug_part(body.name_ru)
+    brand = Brand(slug=allocate_slug(slug_base, taken), is_published=body.is_published)
     db.add(brand)
     db.flush()
     _set_named_translations(db, BrandTranslation, "brand_id", brand.id, body)
@@ -720,6 +744,23 @@ def _image_public(image: ProductImage) -> dict[str, object]:
         "association_status": image.association_status,
         "url": f"/media/{image.object_key}",
     }
+
+
+def _other_brand_requested(body: BrandWrite) -> bool:
+    return any(is_other_brand_name(name) for name in (body.name_ru, body.name_uz, body.name_en))
+
+
+def _find_other_brand(db: Session) -> Brand | None:
+    rows = db.scalars(select(Brand).options(selectinload(Brand.translations))).all()
+    matches = [
+        brand
+        for brand in rows
+        if is_other_brand(brand.slug, [item.name for item in brand.translations])
+    ]
+    if not matches:
+        return None
+    matches.sort(key=lambda brand: (brand.slug != OTHER_BRAND_SLUG, brand.id))
+    return matches[0]
 
 
 def _brand_public(brand: Brand) -> dict[str, object]:

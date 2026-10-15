@@ -54,6 +54,10 @@ def test_brand_detection_uses_text_not_a_short_token_inside_another_word() -> No
     assert detect_brands("WD Purple", None) == ["WD"]
     assert detect_brands("FORWARD cam", None) == []
     assert detect_brands("HiLook Hikvision combo", None) == ["HiLook", "Hikvision"]
+    assert detect_brands("Other accessory", "другие устройства") == []
+    assert detect_brands("Boshqalar", None) == []
+    assert detect_brands("Hikvision other mount", None) == ["Hikvision"]
+    assert detect_brands(None, None) == []
     assert normalize_model("DS80HKVS\u2010VX1") == "ds80hkvs-vx1"
 
 
@@ -86,8 +90,10 @@ def test_hikvision_rows_prices_and_headings(tmp_path: Path) -> None:
     blank_price = _by_model(parsed, "plain cam")[0]
     assert blank_price.proposal["price"]["kind"] == "blank"
     assert blank_price.proposal["price"]["public_amount"] is None
-    assert blank_price.proposal["brand"] is None
-    assert {"code": "brand_unverified"} in blank_price.messages
+    assert blank_price.proposal["brand"] == "HiLook"
+    assert {"code": "brand_unverified"} not in blank_price.messages
+    assert _by_model(parsed, "BNC")[0].proposal["brand"] is None
+    assert {"code": "brand_unverified"} in _by_model(parsed, "BNC")[0].messages
 
     requested = _by_model(parsed, "DS-1")[0]
     assert requested.proposal["price"]["kind"] == "explicit_on_request"
@@ -213,5 +219,27 @@ def test_real_workbooks_stay_byte_for_byte_unchanged() -> None:
     assert prices.count("numeric") == 587
     assert prices.count("explicit_on_request") == 42
     assert prices.count("blank") == 10
+    hilook_rows = [row for sheet in hikvision_parsed.sheets if sheet.name == "Hilook" for row in sheet.rows]
+    intercoms = [row for row in hilook_rows if row.proposal.get("section_label") == "домофоны"]
+    switches = [row for row in hilook_rows if row.proposal.get("section_label") == "Сетевой коммутаторы"]
+    assert len(intercoms) == 5 and {row.proposal.get("parent_section_label") for row in intercoms} == {None}
+    assert len(switches) == 10 and {row.proposal.get("parent_section_label") for row in switches} == {None}
+    panovu = next(row for row in hilook_rows if row.proposal.get("model_display") == "PTZ-P332ZI-DE3")
+    assert panovu.proposal["section_label"] == "PanoVu Mini"
+    assert panovu.proposal["parent_section_label"] == "PTZ"
+    series = next(row for row in hilook_rows if row.proposal.get("model_display") == "THC-B127-LPC")
+    assert series.proposal["section_label"] == "2MP серия"
+    assert series.proposal["parent_section_label"] == "Turbo HD камера"
+    brands = [
+        row.proposal.get("brand")
+        for row in rows
+        if row.classification in {"product", "service"}
+    ]
+    assert brands.count(None) == 97
+    assert brands.count("HiLook") == 105
+    assert brands.count("Hikvision") == 341
+    assert brands.count("EZVIZ") == 84
+    assert brands.count("WD") == 5
+    assert brands.count("Seagate") == 5
     images = [image for parsed in (hikvision_parsed, ezviz_parsed) for sheet in parsed.sheets for image in sheet.images if not image.rejected and image.link_status != "shared_candidate"]
     assert len(images) == 762

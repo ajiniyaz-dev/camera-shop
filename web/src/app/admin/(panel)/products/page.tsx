@@ -18,6 +18,18 @@ type Row = {
   public_price_amount: string | null;
 };
 
+const productColumns =
+  "grid grid-cols-[minmax(14rem,2.2fr)_minmax(7rem,1fr)_9rem_10rem_9rem] items-center gap-x-4 px-3";
+
+function formatListPrice(row: Row): string {
+  if (row.public_price_status !== "numeric" || !row.public_price_amount) {
+    return row.public_price_status;
+  }
+  const amount = Number(row.public_price_amount);
+  if (!Number.isFinite(amount)) return `$${row.public_price_amount}`;
+  return `$${amount.toFixed(2)}`;
+}
+
 export default function ProductsPage() {
   const locale = useAdminLocale();
   const [q, setQ] = useState("");
@@ -112,19 +124,44 @@ export default function ProductsPage() {
       </form>
       {message ? <p role="alert" className="mt-3 text-sm text-red-700">{message}</p> : null}
       {rows.length === 0 ? <p className="mt-6 text-sm">{translate(locale, "noProducts")}</p> : null}
-      <ul className="mt-4 divide-y rounded border border-neutral-200 bg-white">
-        {rows.map((row) => (
-          <li key={row.id}>
-            <Link href={`/admin/products/${row.id}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 text-sm hover:bg-neutral-50">
-              <span className="font-medium">{row.model_display}</span>
-              <span>{row.brand ?? translate(locale, "none")}</span>
-              <span>{row.public_price_status === "numeric" ? `$${row.public_price_amount}` : row.public_price_status}</span>
-              <span>{row.stock_status}</span>
-              <span>{row.catalog_status}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {rows.length > 0 ? (
+        <div className="mt-4 overflow-x-auto rounded border border-neutral-200 bg-white">
+          <div className="min-w-[46rem]" role="table">
+            <div role="row" className={`${productColumns} border-b border-neutral-200 py-2 text-xs font-medium text-neutral-500`}>
+              <span role="columnheader" className="text-left">{translate(locale, "model")}</span>
+              <span role="columnheader" className="text-left">{translate(locale, "brand")}</span>
+              <span role="columnheader" className="text-left">{translate(locale, "price")}</span>
+              <span role="columnheader" className="text-left">{translate(locale, "stock")}</span>
+              <span role="columnheader" className="text-left">{translate(locale, "status")}</span>
+            </div>
+            <div role="rowgroup" className="divide-y divide-neutral-100">
+              {rows.map((row) => {
+                const brand = row.brand ?? translate(locale, "none");
+                return (
+                  <Link
+                    key={row.id}
+                    href={`/admin/products/${row.id}`}
+                    role="row"
+                    className={`${productColumns} py-3 text-sm hover:bg-neutral-50`}
+                  >
+                    <span role="cell" className="min-w-0 truncate text-left font-medium" title={row.model_display}>
+                      {row.model_display}
+                    </span>
+                    <span role="cell" className="min-w-0 truncate text-left" title={brand}>
+                      {brand}
+                    </span>
+                    <span role="cell" className="whitespace-nowrap text-left tabular-nums">
+                      {formatListPrice(row)}
+                    </span>
+                    <span role="cell" className="whitespace-nowrap text-left">{row.stock_status}</span>
+                    <span role="cell" className="whitespace-nowrap text-left">{row.catalog_status}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-4 flex items-center gap-3 text-sm">
         <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded border px-3 py-1 disabled:opacity-40">
           {translate(locale, "previous")}

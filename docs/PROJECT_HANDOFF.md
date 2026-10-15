@@ -424,6 +424,18 @@ Phase 7 commit: `6b664ee64dd6f74d1196c4ebae38e0ffeef5194e` — `Implement techni
 
 That commit adds public metadata, canonical and hreflang handling, `/sitemap.xml`, `/robots.txt`, Open Graph, and JSON-LD. No Alembic revision was added. The Excel workbooks were not modified.
 
+## Local catalog checkpoint — 16 October 2026
+
+Verified against the running Compose database. No catalog rows were changed for this checkpoint.
+
+- Products: 630 published, 10 draft, 1 archived. No product has `deleted_at` set.
+- Import jobs 1–4 are `preview`. Job 5 is `applied`.
+- Brand `other` (id 8) is unpublished. Category 38, slug `drugie-ustroystva`, name `другие устройства`, is unpublished.
+- The public site for this machine is `http://127.0.0.1:8080`. Compose services `postgres`, `api`, `web`, and `nginx` are the local stack. Postgres is published on host port 5433 so it does not collide with a host PostgreSQL on 5432. The API container still uses `postgres:5432` on the Compose network.
+- Products are archived, not deleted. The test rows are still present: product 1 `TEST-DO-NOT-SELL-001` is archived, and product 2 `ddmlwefwe` is a draft. There is no admin delete route.
+- The other drafts are 13–17 (Seagate drives with empty Russian descriptions; 14 still has a desktop-drive photo the source does not name), 268 (Russian 25× optical zoom, English and Uzbek still say 15×, and the photo is shared with the published 15× model), 494 (`GDR-126035B` in the model and `GDR-126035BM` in the description), 528 (`гибкий переход`, still in unpublished category 38), and 533 (`2V 15A` in the model and 12V in the description).
+- A custom-format `pg_dump` of this database is stored outside the repository, next to a short restore note. Dumps, `.env`, PostgreSQL data, and `data/source/*.xlsx` are not committed.
+
 ## Next task
 
 Phase 8 — production deployment and hardening. Set `PUBLIC_SITE_URL` to the real HTTPS origin before launch, then confirm canonicals, hreflang, the sitemap, and one numeric product against that host. Do not invent a domain, phone, email, address, or social URL. Do not modify `data/source/`. Do not add a cart, checkout, payments, customer accounts, or orders. Ranking and webmaster-tool validation are not a substitute for deployment checks.

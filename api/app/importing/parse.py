@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,9 @@ _OPTION = "доп-опция"
 _PRICE = "цена"
 _DEALER = "цена для дилера"
 _LINE = "№"
+_CATALOG_CODE = re.compile(r"^(?:DS|IDS)(?=[-\d])", re.IGNORECASE)
+_SERIES_WORD = "серия"
+_PARENT_TOKEN_STOP = frozenset({"камера"})
 
 
 class MissingCache:
@@ -451,6 +455,9 @@ def _classify_row(
         classification = "invalid"
         messages.append(_message("missing_model"))
 
+    brand, brand_code = _brand_for_row(source_code, worksheet_name, model_text, description_text)
+    if brand_code and classification in {"product", "service"}:
+        messages.append(_message(brand_code))
     proposal = _proposal(
         source_code,
         worksheet_name,
@@ -462,15 +469,10 @@ def _classify_row(
         note_text,
         price,
         line_value,
+        brand if classification in {"product", "service"} else None,
     )
     if classification == "heading":
         proposal["heading_text"] = _heading_text(line_value)
-    if classification in {"product", "service"} and source_code == "hikvision":
-        detected = detect_brands(model_text, description_text)
-        if len(detected) > 1:
-            messages.append(_message("brand_ambiguous"))
-        elif not detected:
-            messages.append(_message("brand_unverified"))
     if note_text and "скид" in note_text.casefold():
         messages.append(_message("internal_discount_note"))
     return ParsedRow(
@@ -494,6 +496,7 @@ def _proposal(
     note: str | None,
     price: dict[str, Any],
     line_value: Any,
+    brand: str | None,
 ) -> dict[str, Any]:
     if classification not in {"product", "service"}:
         return {"source_row": row_number, "worksheet": worksheet_name}
@@ -504,8 +507,6 @@ def _proposal(
     option_clean = option_clean or None
     digest = description_sha256(description_clean)
     option_key = normalize_option(option_clean)
-    brands = ["EZVIZ"] if source_code == "ezviz" else detect_brands(model_raw, description_clean)
-    brand = brands[0] if len(brands) == 1 else None
     proposal: dict[str, Any] = {
         "source_code": source_code,
         "worksheet": worksheet_name,
@@ -541,6 +542,7 @@ def _assign_categories(rows: list[ParsedRow], *, use_headings: bool, sheet_name:
         return
     heading_indexes = [index for index, row in enumerate(rows) if row.classification == "heading"]
     parent_name: str | None = None
+    first_section = False
     claimed: set[int] = set()
     for position, index in enumerate(heading_indexes):
         next_index = heading_indexes[position + 1] if position + 1 < len(heading_indexes) else len(rows)
@@ -551,8 +553,12 @@ def _assign_categories(rows: list[ParsedRow], *, use_headings: bool, sheet_name:
         name = str(heading.proposal.get("heading_text") or "")
         if not has_products:
             parent_name = name
+            first_section = True
             heading.proposal["category_proposal"] = {"name": name, "role": "parent", "parent_name": None}
             continue
+        if parent_name and not _section_belongs_to_parent(parent_name, name, first=first_section):
+            parent_name = None
+        first_section = False
         heading.proposal["category_proposal"] = {
             "name": name,
             "role": "section",
@@ -617,6 +623,63 @@ def _workbook_has_formula(workbook: Any) -> bool:
             for cell in row:
                 if cell.data_type == "f":
                     return True
+    return False
+
+
+def _brand_for_row(
+    source_code: str,
+    worksheet_name: str,
+    model_text: str | None,
+    description_text: str | None,
+) -> tuple[str | None, str | None]:
+    """Return the proposed brand and a review code when the source does not decide it."""
+
+    if source_code == "ezviz":
+        return "EZVIZ", None
+    detected = detect_brands(model_text, description_text)
+    sheet_brand = _worksheet_brand(source_code, worksheet_name, model_text)
+    if len(detected) > 1:
+        return None, "brand_ambiguous"
+    if len(detected) == 1:
+        if sheet_brand and detected[0] != sheet_brand:
+            return None, "brand_ambiguous"
+        return detected[0], None
+    if sheet_brand:
+        return sheet_brand, None
+    if source_code == "hikvision":
+        return None, "brand_unverified"
+    return None, None
+
+
+def _worksheet_brand(source_code: str, worksheet_name: str, model_text: str | None) -> str | None:
+    if source_code != "hikvision":
+        return None
+    if worksheet_name.casefold() == "hilook":
+        return "HiLook"
+    display = display_model(model_text or "")
+    if _CATALOG_CODE.match(display):
+        return "Hikvision"
+    return None
+
+
+def _section_belongs_to_parent(parent: str, heading: str, *, first: bool) -> bool:
+    """Keep a group title only for the section it actually introduces.
+
+    The first label after a childless heading belongs to that group. A later
+    label stays in the group when it is a series, or when it repeats the group
+    name. Any other label is a new section and must not inherit the old parent.
+    """
+
+    if first:
+        return True
+    folded = heading.casefold()
+    if _SERIES_WORD in folded:
+        return True
+    for token in re.findall(r"[0-9a-zа-яё]+", parent.casefold()):
+        if len(token) < 3 or token in _PARENT_TOKEN_STOP:
+            continue
+        if token in folded:
+            return True
     return False
 
 

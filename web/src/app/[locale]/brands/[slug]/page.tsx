@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
+import { Breadcrumbs } from "@/components/public/breadcrumbs";
 import { JsonLd } from "@/components/public/json-ld";
+import { PageHeading } from "@/components/public/page-heading";
 import { ProductListing } from "@/components/public/product-listing";
 import { publicGetOrNotFound, requireLocale, type PublicBrand, type SearchParams } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
@@ -39,32 +40,9 @@ export default async function BrandPage({
   return (
     <main className="space-y-8">
       <JsonLd data={breadcrumbJson(crumbs)} />
-      <nav aria-label={text.categories} className="text-sm text-slate-700">
-        <ol className="flex flex-wrap gap-2">
-          {crumbs.map((item, index) => (
-            <li key={item.path}>
-              {index > 0 ? <span aria-hidden="true">/ </span> : null}
-              {index === crumbs.length - 1 ? (
-                <span>{item.name}</span>
-              ) : (
-                <Link href={item.path} className="underline underline-offset-4">
-                  {item.name}
-                </Link>
-              )}
-            </li>
-          ))}
-        </ol>
-      </nav>
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold">{brand.name}</h1>
-        {brand.translation_fallback ? <p className="text-sm text-slate-600">{text.fallback}</p> : null}
-        {brand.description ? <p className="max-w-3xl leading-7">{brand.description}</p> : null}
-        <p>
-          <Link href={`/${locale}/catalog`} className="underline underline-offset-4">
-            {text.allProducts}
-          </Link>
-        </p>
-      </header>
+      <Breadcrumbs label={text.navigation} items={crumbs} />
+      <PageHeading title={brand.name} description={brand.description} action={{ href: `/${locale}/catalog`, label: text.allProducts }} />
+      {brand.translation_fallback ? <p className="-mt-4 text-sm text-navy/60">{text.fallback}</p> : null}
       <ProductListing
         locale={locale}
         pathname={`/${locale}/brands/${slug}`}

@@ -1,19 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useAdminLocale } from "@/components/admin/shell";
+import { categoryLoadFailure, parseCategoryList, type AdminCategory } from "@/lib/admin-categories";
 import { adminJson, ApiError } from "@/lib/admin-api";
 import { translate } from "@/lib/i18n";
 
-type Category = {
-  id: number;
-  parent_id: number | null;
-  name_ru: string | null;
-  name_uz: string | null;
-  name_en: string | null;
-  is_published: boolean;
-};
+type Category = AdminCategory;
+
+const loadTimeoutMs = 20_000;
 
 const field = "mt-1 w-full rounded border border-neutral-300 px-3 py-2";
 
@@ -23,12 +19,51 @@ export default function CategoriesPage() {
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  function reload() {
-    adminJson<{ categories: Category[] }>("/api/admin/categories").then((body) => setRows(body.categories));
-  }
+  const reload = useCallback(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), loadTimeoutMs);
+    let active = true;
+    setLoading(true);
+    adminJson<unknown>("/api/admin/categories", { signal: controller.signal })
+      .then((body) => {
+        if (!active) {
+          return;
+        }
+        setRows(parseCategoryList(body));
+        setLoadError("");
+      })
+      .catch((error: unknown) => {
+        if (!active) {
+          return;
+        }
+        const failure = categoryLoadFailure(error);
+        if (failure === "unauthorized") {
+          setLoadError(translate(locale, "unauthorized"));
+          return;
+        }
+        if (failure === "message" && error instanceof ApiError) {
+          setLoadError(error.message);
+          return;
+        }
+        setLoadError(translate(locale, "error"));
+      })
+      .finally(() => {
+        window.clearTimeout(timer);
+        if (active) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [locale]);
 
-  useEffect(reload, []);
+  useEffect(() => reload(), [reload]);
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
@@ -65,7 +100,7 @@ export default function CategoriesPage() {
       <h1 className="text-2xl font-semibold">{translate(locale, "categories")}</h1>
       <form onSubmit={create} className="mt-4 flex flex-wrap items-end gap-2">
         <label className="text-sm">
-          {translate(locale, "name")} RU
+          {translate(locale, "name")}
           <input required value={name} onChange={(event) => setName(event.target.value)} className={field} />
         </label>
         <label className="text-sm">
@@ -84,7 +119,9 @@ export default function CategoriesPage() {
         </button>
       </form>
       {message ? <p className="mt-3 text-sm">{message}</p> : null}
-      {rows.length === 0 ? <p className="mt-6 text-sm">{translate(locale, "empty")}</p> : null}
+      {loading && rows.length === 0 ? <p className="mt-6 text-sm">{translate(locale, "loading")}</p> : null}
+      {!loading && loadError ? <p className="mt-6 text-sm" role="alert">{loadError}</p> : null}
+      {!loading && !loadError && rows.length === 0 ? <p className="mt-6 text-sm">{translate(locale, "empty")}</p> : null}
       <ul className="mt-4 space-y-3">
         {rows.map((row) => (
           <li key={row.id} className="rounded border border-neutral-200 bg-white p-3">

@@ -17,6 +17,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.brand_groups import is_other_brand, is_other_brand_name
 from app.importing.slug import allocate_slug, product_slug, slug_part
 from app.models import (
     AdminAuditLog,
@@ -205,6 +206,10 @@ def _writes_nothing(row: ImportRow) -> bool:
     return row.action == "unchanged" or not changes
 
 
+def _brand_name_missing(name: object) -> bool:
+    return not isinstance(name, str) or not " ".join(name.split())
+
+
 def _accepts_field(row: ImportRow, field_name: str) -> bool:
     if row.resolution == "keep_current":
         decision = ((row.proposal or {}).get("field_resolutions") or {}).get(field_name, "keep_current")
@@ -253,7 +258,7 @@ def _insert_product(
             row.source_row,
             taken_slugs,
         ),
-        catalog_status="published" if job.publish_new_products else "draft",
+        catalog_status=_initial_catalog_status(proposal, job.publish_new_products),
         price_updated_at=now,
     )
     session.add(product)
@@ -262,6 +267,7 @@ def _insert_product(
         ProductTranslation(
             product_id=product.id,
             locale="ru",
+            localized_name=_source_localized_name(proposal),
             description=proposal.get("description"),
             origin="source",
             description_locked=False,
@@ -300,17 +306,29 @@ def _update_product(
     if _accepts_field(row, "description"):
         translation = next((item for item in product.translations if item.locale == "ru"), None)
         if translation is None:
-            product.translations.append(
-                ProductTranslation(
-                    locale="ru",
-                    description=proposal.get("description"),
-                    origin="source",
-                )
+            translation = ProductTranslation(
+                locale="ru",
+                localized_name=_source_localized_name(proposal),
+                description=proposal.get("description"),
+                origin="source",
             )
+            product.translations.append(translation)
         else:
             translation.description = proposal.get("description")
+            _fill_empty_source_name(translation, proposal)
+    else:
+        translation = next((item for item in product.translations if item.locale == "ru"), None)
+        if translation is not None:
+            _fill_empty_source_name(translation, proposal)
     if _accepts_field(row, "brand"):
-        product.brand_id = brands.ensure(proposal.get("brand"), False)
+        proposed = proposal.get("brand")
+        if is_other_brand_name(proposed):
+            pass
+        elif _brand_name_missing(proposed):
+            if not brands.is_assigned_other(product.brand_id):
+                product.brand_id = brands.ensure(None, False)
+        else:
+            product.brand_id = brands.ensure(proposed, False)
     if _accepts_field(row, "category"):
         product.category_id = categories.ensure(
             proposal.get("category_name"),
@@ -456,6 +474,31 @@ def _mark_absent(session: Session, source_codes: set[str], touched: set[int], no
     return absent
 
 
+def _source_localized_name(proposal: dict[str, Any]) -> str | None:
+    """The workbook has one model column and no separate product-name column."""
+
+    name = str(proposal.get("model_display") or "").strip()
+    return name or None
+
+
+def _fill_empty_source_name(translation: ProductTranslation, proposal: dict[str, Any]) -> None:
+    """Fill a blank Russian name. A manual name, including a cleared one, stays put."""
+
+    if translation.origin == "manual":
+        return
+    if translation.localized_name and translation.localized_name.strip():
+        return
+    translation.localized_name = _source_localized_name(proposal)
+
+
+def _initial_catalog_status(proposal: dict[str, Any], publish_new_products: bool) -> str:
+    """Services stay drafts. Publishing them is a separate catalog decision."""
+
+    if proposal.get("product_kind") == "service":
+        return "draft"
+    return "published" if publish_new_products else "draft"
+
+
 def _public_price(price: dict[str, Any]) -> tuple[str, Decimal | None, str | None]:
     if price.get("kind") == "numeric" and price.get("amount") is not None:
         return "numeric", Decimal(str(price["amount"])).quantize(Decimal("0.01")), "USD"
@@ -510,15 +553,25 @@ class _BrandBook:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.by_name: dict[str, Brand] = {}
+        self.by_id: dict[int, Brand] = {}
         rows = session.scalars(select(Brand).options(selectinload(Brand.translations))).all()
         for brand in rows:
+            self.by_id[brand.id] = brand
             for translation in brand.translations:
                 if translation.locale == "ru":
                     self.by_name[translation.name] = brand
         self.slugs = {brand.slug for brand in rows}
 
+    def is_assigned_other(self, brand_id: int | None) -> bool:
+        if brand_id is None:
+            return False
+        brand = self.by_id.get(brand_id)
+        if brand is None:
+            return False
+        return is_other_brand(brand.slug, [item.name for item in brand.translations])
+
     def ensure(self, name: str | None, publish: bool) -> int | None:
-        if not name:
+        if not name or is_other_brand_name(name):
             return None
         found = self.by_name.get(name)
         if found is not None:

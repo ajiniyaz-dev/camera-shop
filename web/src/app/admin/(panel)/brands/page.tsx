@@ -57,7 +57,7 @@ export default function BrandsPage() {
       <h1 className="text-2xl font-semibold">{translate(locale, "brands")}</h1>
       <form onSubmit={create} className="mt-4 flex flex-wrap items-end gap-2">
         <label className="text-sm">
-          {translate(locale, "name")} RU
+          {translate(locale, "name")}
           <input required value={name} onChange={(event) => setName(event.target.value)} className={field} />
         </label>
         <button type="submit" className="rounded bg-neutral-900 px-3 py-2 text-sm text-white">

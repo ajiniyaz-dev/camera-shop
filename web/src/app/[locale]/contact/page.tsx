@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ContactDetails } from "@/components/public/contact-details";
+import { PageHeading } from "@/components/public/page-heading";
 import { JsonLd } from "@/components/public/json-ld";
 import { loadPublic, requireLocale, type Company } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
@@ -27,8 +28,7 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
   return (
     <main className="space-y-6">
       <JsonLd data={organizationJson(company)} />
-      <h1 className="text-3xl font-semibold">{text.contact}</h1>
-      <p className="text-lg font-medium">{company.name}</p>
+      <PageHeading title={text.contact} description={company.name} />
       {details}
     </main>
   );

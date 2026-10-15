@@ -6,8 +6,10 @@
 
 services:
   postgres:
+    # 5433 avoids the host PostgreSQL service, which commonly owns 127.0.0.1:5432.
+    # Inside Compose the API still connects to postgres:5432.
     ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
 
   api:
     environment:

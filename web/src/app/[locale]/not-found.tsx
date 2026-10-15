@@ -14,8 +14,8 @@ export default function LocaleNotFound() {
     <main className="space-y-4 py-8">
       {lines.map((locale) => (
         <p key={locale} lang={locale}>
-          <span className="text-2xl font-semibold">{messages[locale].notFound}</span>{" "}
-          <Link href={`/${locale}`} className="underline underline-offset-4">
+          <span className="text-2xl font-semibold text-navy">{messages[locale].notFound}</span>{" "}
+          <Link href={`/${locale}`} className="text-brand underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
             {messages[locale].home}
           </Link>
         </p>

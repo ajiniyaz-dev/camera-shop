@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { Breadcrumbs } from "@/components/public/breadcrumbs";
+import { PageHeading } from "@/components/public/page-heading";
 import { ProductListing } from "@/components/public/product-listing";
 import { requireLocale, type SearchParams } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
@@ -32,10 +34,18 @@ export default async function SearchPage({
   searchParams: Promise<SearchParams>;
 }) {
   const locale = await requireLocale(params);
+  const text = messages[locale];
   const query = await searchParams;
   return (
-    <main className="space-y-6">
-      <h1 className="text-3xl font-semibold">{messages[locale].search}</h1>
+    <main className="space-y-8">
+      <Breadcrumbs
+        label={text.navigation}
+        items={[
+          { name: text.home, path: `/${locale}` },
+          { name: text.search, path: `/${locale}/search` },
+        ]}
+      />
+      <PageHeading title={text.search} description={text.searchCatalog} action={{ href: `/${locale}/catalog`, label: text.catalog }} />
       <ProductListing locale={locale} pathname={`/${locale}/search`} searchParams={query} searchOnly />
     </main>
   );
