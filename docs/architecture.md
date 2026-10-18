@@ -62,7 +62,7 @@ Server-rendered screens for the capabilities in `docs/project-requirements.md`. 
 3. FastAPI returns only published, non-archived rows and only public fields.
 4. Localized product copy comes from the requested locale. If that translation is missing, the API returns the Russian original and `translation_fallback: true`. The page shows it as the original Russian text, using a UI label that is itself translated. It does not label the Russian paragraph as Uzbek or English.
 5. Price rendering:
-   - `numeric` — the decimal amount with a `$` prefix. No discount and no second price.
+   - `numeric` — one whole soʻm amount from stored USD × workbook factor (Hikvision × 9600, EZVIZ × 10800). No stored-USD figure, discount, or second price on the public page.
    - `on_request` — the locale’s request-price string: Russian `По запросу`, Uzbek `So'rov asosida`, English `On request`.
 6. Stock rendering: the payload may include `out_of_stock`. The page draws a badge only in that case, with `Нет в наличии`, `Mavjud emas`, or `Out of stock`. In stock adds no badge and no quantity.
 7. The page emits canonical and `hreflang` links for `ru`, `uz`, and `en`.

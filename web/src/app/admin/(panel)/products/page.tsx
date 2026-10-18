@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { useAdminLocale } from "@/components/admin/shell";
 import { adminJson } from "@/lib/admin-api";
+import { listStatus } from "@/lib/admin-state";
 import { translate } from "@/lib/i18n";
 
 type Named = { id: number; name_ru: string | null };
@@ -43,6 +44,8 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -57,12 +60,21 @@ export default function ProductsPage() {
     if (stock) params.set("stock_status", stock);
     if (brandId) params.set("brand_id", brandId);
     if (categoryId) params.set("category_id", categoryId);
+    setLoading(true);
     adminJson<{ products: Row[]; total: number }>(`/api/admin/products?${params}`)
       .then((body) => {
         setRows(body.products);
         setTotal(body.total);
+        setFailed(false);
+        setMessage("");
       })
-      .catch(() => setMessage(translate(locale, "error")));
+      .catch(() => {
+        setRows([]);
+        setTotal(0);
+        setFailed(true);
+        setMessage(translate(locale, "error"));
+      })
+      .finally(() => setLoading(false));
   }, [locale, page, q, sort, status, stock, brandId, categoryId]);
 
   return (
@@ -123,7 +135,8 @@ export default function ProductsPage() {
         </label>
       </form>
       {message ? <p role="alert" className="mt-3 text-sm text-red-700">{message}</p> : null}
-      {rows.length === 0 ? <p className="mt-6 text-sm">{translate(locale, "noProducts")}</p> : null}
+      {listStatus(loading, failed, rows.length) === "loading" ? <p className="mt-6 text-sm">{translate(locale, "loading")}</p> : null}
+      {listStatus(loading, failed, rows.length) === "empty" ? <p className="mt-6 text-sm">{translate(locale, "noProducts")}</p> : null}
       {rows.length > 0 ? (
         <div className="mt-4 overflow-x-auto rounded border border-neutral-200 bg-white">
           <div className="min-w-[46rem]" role="table">

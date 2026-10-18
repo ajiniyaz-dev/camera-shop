@@ -12,7 +12,17 @@ from sqlalchemy.orm import Session
 from app.auth.passwords import hash_password
 from app.config import Settings, get_settings
 from app.main import create_app
-from app.models import AdminAuditLog, AdminUser, Product, ProductImage
+from app.models import (
+    AdminAuditLog,
+    AdminUser,
+    ImportAsset,
+    ImportFile,
+    ImportJob,
+    ImportRow,
+    Product,
+    ProductImage,
+    ProductSourceRecord,
+)
 from tests.import_builders import png_bytes
 
 API_ROOT = Path(__file__).resolve().parents[1]
@@ -351,6 +361,50 @@ def test_archive_brand_category_images_and_import_list(client: TestClient, engin
     assert rejected.status_code == 422
 
 
+def test_category_uz_and_en_names_are_stored_on_translations(client: TestClient, engine) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    created = client.post(
+        "/api/admin/categories",
+        json={
+            "name_ru": "другие устройства",
+            "name_uz": "Boshqa qurilmalar",
+            "name_en": "Other devices",
+            "is_published": True,
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201
+    assert created.json()["name_ru"] == "другие устройства"
+    assert created.json()["name_uz"] == "Boshqa qurilmalar"
+    assert created.json()["name_en"] == "Other devices"
+    category_id = created.json()["id"]
+    patched = client.patch(
+        f"/api/admin/categories/{category_id}",
+        json={
+            "name_ru": "другие устройства",
+            "name_uz": "Boshqa qurilmalar",
+            "name_en": "Other devices",
+            "is_published": True,
+        },
+        headers=headers,
+    )
+    assert patched.status_code == 200
+    assert patched.json()["name_ru"] == "другие устройства"
+    assert patched.json()["name_uz"] == "Boshqa qurilmalar"
+    assert patched.json()["name_en"] == "Other devices"
+    slug = created.json()["slug"]
+    for locale, name in (
+        ("ru", "другие устройства"),
+        ("uz", "Boshqa qurilmalar"),
+        ("en", "Other devices"),
+    ):
+        public = client.get(f"/api/public/categories/{slug}", params={"locale": locale})
+        assert public.status_code == 200
+        assert public.json()["name"] == name
+        assert public.json()["translation_fallback"] is False
+
+
 def test_other_brand_is_created_once_and_assigned_only_when_chosen(client: TestClient, engine) -> None:
     _seed(engine)
     headers = _auth(client)
@@ -404,3 +458,292 @@ def test_other_brand_is_created_once_and_assigned_only_when_chosen(client: TestC
     assert real.json()["brand_id"] == hikvision.json()["id"]
     assert grouped.json()["brand_id"] == other.json()["id"]
     assert bare.json()["brand_id"] is None
+
+
+def test_delete_requires_auth_confirmation_and_preserves_shared_history(client: TestClient, engine) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    category = client.post(
+        "/api/admin/categories",
+        json={"name_ru": "другие устройства", "is_published": False},
+        headers=headers,
+    )
+    assert category.status_code == 201
+    category_id = category.json()["id"]
+    removed = client.post("/api/admin/products", json=_product("TEST-DO-NOT-SELL-001"), headers=headers)
+    keeper = client.post("/api/admin/products", json=_product("Keeper"), headers=headers)
+    flexible = client.post(
+        "/api/admin/products",
+        json=_product("гибкий переход", category_id=category_id, catalog_status="draft", price={"status": "numeric", "amount": "1.50"}),
+        headers=headers,
+    )
+    assert removed.status_code == keeper.status_code == flexible.status_code == 201
+    removed_id = removed.json()["id"]
+    keeper_id = keeper.json()["id"]
+    flexible_id = flexible.json()["id"]
+    assert flexible.json()["category_id"] == category_id
+    assert flexible.json()["catalog_status"] == "draft"
+    assert flexible.json()["category_locked"] is True
+
+    shared = png_bytes(1)
+    exclusive = png_bytes(2)
+    for product_id, payload, name in ((removed_id, shared, "shared.png"), (keeper_id, shared, "shared.png"), (removed_id, exclusive, "only.png")):
+        uploaded = client.post(
+            f"/api/admin/products/{product_id}/images",
+            files={"file": (name, payload, "image/png")},
+            headers=headers,
+        )
+        assert uploaded.status_code == 201
+    with Session(bind=engine) as db:
+        admin = db.scalar(select(AdminUser))
+        assert admin is not None
+        flexible_row = db.get(Product, flexible_id)
+        assert flexible_row is not None
+        flexible_row.category_locked = False
+        job = ImportJob(created_by=admin.id, status="applied", applied_at=func.now())
+        db.add(job)
+        db.flush()
+        stored = ImportFile(
+            job_id=job.id,
+            source_code="hikvision",
+            original_filename="Hikvision pr.xlsx",
+            sha256="a" * 64,
+            stored_object_key="private-uploads/test",
+        )
+        db.add(stored)
+        db.flush()
+        db.add(
+            ImportRow(
+                import_file_id=stored.id,
+                worksheet_name="другие устройства",
+                source_row=75,
+                classification="product",
+                action="unchanged",
+                raw_cells={"C": "гибкий переход"},
+                proposal={},
+                matched_product_id=removed_id,
+                applied=True,
+            )
+        )
+        shared_key = db.scalar(select(ProductImage.object_key).where(ProductImage.product_id == keeper_id))
+        exclusive_key = db.scalar(
+            select(ProductImage.object_key).where(ProductImage.product_id == removed_id, ProductImage.object_key != shared_key)
+        )
+        assert shared_key is not None and exclusive_key is not None
+        shared_image = db.scalar(select(ProductImage).where(ProductImage.object_key == shared_key))
+        assert shared_image is not None
+        db.add(
+            ImportAsset(
+                import_file_id=stored.id,
+                object_key=shared_key,
+                sha256=shared_image.sha256.strip(),
+                mime_type="image/png",
+                worksheet="другие устройства",
+                link_status="linked_high",
+                proposed_product_id=removed_id,
+            )
+        )
+        db.add(
+            ProductSourceRecord(
+                product_id=removed_id,
+                source_code="hikvision",
+                source_workbook="Hikvision pr.xlsx",
+                source_worksheet="другие устройства",
+                source_row=75,
+                source_model_raw="TEST-DO-NOT-SELL-001",
+                source_price_kind="numeric",
+                source_price_amount=1,
+                match_key="hikvision|other|test-delete",
+                first_job_id=job.id,
+                last_job_id=job.id,
+            )
+        )
+        db.commit()
+        job_id = job.id
+
+    confirmed = client.patch(
+        f"/api/admin/products/{flexible_id}",
+        json=_product(
+            "гибкий переход",
+            category_id=category_id,
+            catalog_status="draft",
+            price={"status": "numeric", "amount": "1.50"},
+            lock_category=True,
+        ),
+        headers=headers,
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["category_id"] == category_id
+    assert confirmed.json()["category_locked"] is True
+    assert confirmed.json()["catalog_status"] == "draft"
+    assert confirmed.json()["public_price_amount"] == "1.50"
+
+    with TestClient(client.app) as anonymous:
+        assert anonymous.post(
+            f"/api/admin/products/{removed_id}/delete",
+            json={"confirm": True, "model_display": "TEST-DO-NOT-SELL-001"},
+        ).status_code == 401
+    assert client.post(
+        f"/api/admin/products/{removed_id}/delete",
+        json={"confirm": True, "model_display": "TEST-DO-NOT-SELL-001"},
+        headers={"Origin": ORIGIN},
+    ).status_code == 403
+    assert client.post(
+        f"/api/admin/products/{removed_id}/delete",
+        json={"confirm": False, "model_display": "TEST-DO-NOT-SELL-001"},
+        headers=headers,
+    ).status_code == 422
+    assert client.post(
+        f"/api/admin/products/{removed_id}/delete",
+        json={"confirm": True, "model_display": "something-else"},
+        headers=headers,
+    ).status_code == 422
+
+    deleted = client.post(
+        f"/api/admin/products/{removed_id}/delete",
+        json={"confirm": True, "model_display": "TEST-DO-NOT-SELL-001"},
+        headers=headers,
+    )
+    assert deleted.status_code == 204
+    assert client.get(f"/api/admin/products/{removed_id}").status_code == 404
+    listed = client.get("/api/admin/products", params={"q": "TEST-DO-NOT-SELL-001"})
+    assert listed.json()["total"] == 0
+    assert client.get(f"/api/admin/products/{keeper_id}").status_code == 200
+
+    media_root = Path(client.app.state.settings.media_root)
+    with Session(bind=engine) as db:
+        assert db.get(Product, removed_id) is None
+        assert db.get(Product, keeper_id) is not None
+        assert db.get(Product, flexible_id) is not None
+        assert db.scalar(select(func.count()).select_from(ProductSourceRecord).where(ProductSourceRecord.product_id == removed_id)) == 0
+        row = db.scalar(select(ImportRow).where(ImportRow.source_row == 75))
+        assert row is not None
+        assert row.matched_product_id is None
+        assert db.get(ImportJob, job_id) is not None
+        asset = db.scalar(select(ImportAsset))
+        assert asset is not None
+        assert asset.proposed_product_id is None
+        assert asset.object_key == shared_key
+        audit = db.scalar(select(AdminAuditLog).where(AdminAuditLog.action == "product_deleted"))
+        assert audit is not None
+        assert audit.entity_id == removed_id
+        assert audit.detail == {"model_display": "TEST-DO-NOT-SELL-001", "catalog_status": "draft"}
+        keeper_image = db.scalar(select(ProductImage).where(ProductImage.product_id == keeper_id))
+        assert keeper_image is not None
+        assert keeper_image.object_key == shared_key
+    assert (media_root / shared_key).is_file()
+    assert not (media_root / exclusive_key).exists()
+
+
+def test_draft_model_correction_updates_slug_and_published_copy(client: TestClient, engine) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    supply = client.post(
+        "/api/admin/products",
+        json=_product(
+            "2V 15A",
+            catalog_status="draft",
+            price={"status": "numeric", "amount": "5.00"},
+            translations={
+                "ru": {
+                    "localized_name": "2V 15A",
+                    "description": "Блок питания, выходное напряжение: 12V, выходной ток: 15A",
+                }
+            },
+        ),
+        headers=headers,
+    )
+    assert supply.status_code == 201
+    supply_id = supply.json()["id"]
+    assert supply.json()["slug"] == "product-2v-15a"
+    published = client.patch(
+        f"/api/admin/products/{supply_id}",
+        json=_product(
+            "12V 15A",
+            catalog_status="published",
+            price={"status": "numeric", "amount": "5.00"},
+            translations={
+                "ru": {
+                    "localized_name": "12V 15A",
+                    "description": "Блок питания, рабочее напряжение: 110V/220V± 15%, выходное напряжение: 12V, выходной ток: 15A",
+                },
+                "uz": {
+                    "description": "Quvvat bloki, ish kuchlanishi: 110V/220V ± 15%, chiqish kuchlanishi: 12V, chiqish toki: 15A.",
+                },
+                "en": {
+                    "description": "Power supply, operating voltage: 110V/220V ± 15%, output voltage: 12V, output current: 15A.",
+                },
+            },
+        ),
+        headers=headers,
+    )
+    assert published.status_code == 200
+    body = published.json()
+    assert body["model_display"] == "12V 15A"
+    assert body["slug"] == "product-12v-15a"
+    assert body["catalog_status"] == "published"
+    assert body["public_price_amount"] == "5.00"
+    assert body["price_locked"] is True
+    assert "2V 15A" not in body["translations"]["ru"]["description"]
+    assert "12V" in body["translations"]["ru"]["description"]
+    assert "15A" in body["translations"]["ru"]["description"]
+
+    camera = client.post(
+        "/api/admin/products",
+        json=_product("DS-2SE4C425MWG-E 14", catalog_status="published", price={"status": "numeric", "amount": "360.00"}),
+        headers=headers,
+    )
+    assert camera.status_code == 201
+    original_slug = camera.json()["slug"]
+    renamed = client.patch(
+        f"/api/admin/products/{camera.json()['id']}",
+        json=_product(
+            "DS-2SE4C425MWG-E 14X",
+            catalog_status="published",
+            price={"status": "numeric", "amount": "360.00"},
+            translations={
+                "ru": {"localized_name": "DS-2SE4C425MWG-E 14X", "description": "15-кратным оптическим зумом и 16-кратным цифровым зумом"},
+                "en": {"description": "15x optical zoom and 16x digital zoom"},
+            },
+        ),
+        headers=headers,
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["slug"] == original_slug
+    assert "25x" not in renamed.json()["translations"]["en"]["description"]
+    assert "25" not in renamed.json()["translations"]["ru"]["description"]
+
+
+def test_unchanged_specifications_keep_their_rows(client: TestClient, engine) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    spec = {
+        "sort_order": 0,
+        "name_ru": "Питание",
+        "value_ru": "12 В",
+        "name_uz": "Quvvat",
+        "value_uz": "12 V",
+        "name_en": "Power",
+        "value_en": "12 V",
+    }
+    created = client.post("/api/admin/products", json=_product(specifications=[spec]), headers=headers)
+    assert created.status_code == 201
+    product_id = created.json()["id"]
+    spec_id = created.json()["specifications"][0]["id"]
+    same = client.patch(f"/api/admin/products/{product_id}", json=_product(specifications=[spec]), headers=headers)
+    assert same.status_code == 200
+    assert same.json()["specifications"][0]["id"] == spec_id
+    assert same.json()["specifications"][0]["translations"]["uz"]["value"] == "12 V"
+    with Session(bind=engine) as db:
+        audit = db.scalar(select(AdminAuditLog).order_by(AdminAuditLog.id.desc()))
+        assert audit is not None
+        assert "specifications" not in (audit.detail or {}).get("changes", [])
+    changed = dict(spec)
+    changed["value_ru"] = "24 В"
+    updated = client.patch(
+        f"/api/admin/products/{product_id}", json=_product(specifications=[changed]), headers=headers
+    )
+    assert updated.status_code == 200
+    assert updated.json()["specifications"][0]["id"] != spec_id
+    assert updated.json()["specifications"][0]["translations"]["ru"]["value"] == "24 В"
+    assert updated.json()["specifications"][0]["translations"]["en"]["value"] == "12 V"

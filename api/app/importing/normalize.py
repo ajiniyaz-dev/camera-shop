@@ -36,6 +36,14 @@ def collapse_whitespace(value: str) -> str:
     return " ".join(value.split())
 
 
+def same_category_name(stored: str | None, incoming: str | None) -> bool:
+    """True when two category titles differ only by case or internal whitespace."""
+
+    if stored is None or incoming is None:
+        return stored is incoming
+    return collapse_whitespace(stored).casefold() == collapse_whitespace(incoming).casefold()
+
+
 def normalize_header(value: str) -> str:
     return collapse_whitespace(value).casefold()
 

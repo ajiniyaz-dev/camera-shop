@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { useAdminLocale } from "@/components/admin/shell";
 import { adminFetch, adminJson, ApiError, errorMessage } from "@/lib/admin-api";
+import { canSaveLoadedProduct } from "@/lib/admin-state";
 import { translate } from "@/lib/i18n";
 
 type Named = { id: number; name_ru: string | null };
@@ -72,14 +73,16 @@ export function ProductEditor({ productId }: { productId?: number }) {
   const [locks, setLocks] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [saved, setSaved] = useState(false);
+  const [loaded, setLoaded] = useState(productId === undefined);
   const [alt, setAlt] = useState("");
 
   useEffect(() => {
-    adminJson<{ brands: Named[] }>("/api/admin/brands").then((body) => setBrands(body.brands));
-    adminJson<{ categories: Named[] }>("/api/admin/categories").then((body) => setCategories(body.categories));
+    adminJson<{ brands: Named[] }>("/api/admin/brands").then((body) => setBrands(body.brands)).catch(() => setBrands([]));
+    adminJson<{ categories: Named[] }>("/api/admin/categories").then((body) => setCategories(body.categories)).catch(() => setCategories([]));
     if (productId === undefined) {
       return;
     }
+    setLoaded(false);
     adminJson<Product>(`/api/admin/products/${productId}`).then((product) => {
       setModel(product.model_display);
       setOption(product.option_label ?? "");
@@ -119,6 +122,10 @@ export function ProductEditor({ productId }: { productId?: number }) {
         product.translations.ru?.description_locked ? "description" : "",
       ].filter(Boolean);
       setLocks(nextLocks);
+      setLoaded(true);
+    }).catch(() => {
+      setLoaded(false);
+      setMessage(translate(locale, "error"));
     });
   }, [productId]);
 
@@ -143,6 +150,9 @@ export function ProductEditor({ productId }: { productId?: number }) {
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
+    if (!canSaveLoadedProduct(productId, loaded)) {
+      return;
+    }
     setSaved(false);
     setMessage("");
     try {
@@ -166,6 +176,22 @@ export function ProductEditor({ productId }: { productId?: number }) {
       await adminJson(`/api/admin/products/${productId}/archive`, { method: "POST" }, { confirm: true });
       setStatus("archived");
       setSaved(true);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : translate(locale, "error"));
+    }
+  }
+
+  async function removeProduct() {
+    if (productId === undefined) {
+      return;
+    }
+    const typed = window.prompt(translate(locale, "deletePrompt"));
+    if (typed !== model) {
+      return;
+    }
+    try {
+      await adminJson(`/api/admin/products/${productId}/delete`, { method: "POST" }, { confirm: true, model_display: typed });
+      router.replace("/admin/products");
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : translate(locale, "error"));
     }
@@ -217,6 +243,7 @@ export function ProductEditor({ productId }: { productId?: number }) {
       <h1 className="mt-2 text-2xl font-semibold">
         {productId === undefined ? translate(locale, "createProduct") : translate(locale, "editProduct")}
       </h1>
+      {productId !== undefined && !loaded ? <p className="mt-2 text-sm">{message || translate(locale, "loading")}</p> : null}
       {locks.length > 0 ? <p className="mt-2 text-sm text-neutral-600">{translate(locale, "locked")}</p> : null}
       <form onSubmit={save} className="mt-4 space-y-4">
         <label className="block text-sm">
@@ -346,12 +373,17 @@ export function ProductEditor({ productId }: { productId?: number }) {
         ) : null}
         {saved ? <p className="text-sm text-green-800">{translate(locale, "saved")}</p> : null}
         <div className="flex flex-wrap gap-2">
-          <button type="submit" className="rounded bg-neutral-900 px-4 py-2 text-sm text-white">
+          <button type="submit" disabled={!canSaveLoadedProduct(productId, loaded)} className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-40">
             {translate(locale, "save")}
           </button>
           {productId !== undefined ? (
-            <button type="button" onClick={archive} className="rounded border border-neutral-300 px-4 py-2 text-sm">
+            <button type="button" onClick={archive} disabled={!loaded} className="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-40">
               {translate(locale, "archive")}
+            </button>
+          ) : null}
+          {productId !== undefined ? (
+            <button type="button" onClick={removeProduct} disabled={!loaded} className="rounded border border-red-300 px-4 py-2 text-sm text-red-800 disabled:opacity-40">
+              {translate(locale, "deleteProduct")}
             </button>
           ) : null}
         </div>

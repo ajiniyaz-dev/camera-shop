@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { AccentBar, BrandMark, focusDark } from "@/components/public/brand-mark";
 import { LanguageSwitcher } from "@/components/public/language-switcher";
+import { SelectionLink } from "@/components/public/selection-link";
 import { SiteNav } from "@/components/public/site-nav";
 import type { Company } from "@/lib/public-api";
 import { PUBLIC_LOCALES, messages, type PublicLocale } from "@/lib/public-i18n";
@@ -31,7 +32,8 @@ export function SiteHeader({ locale, company }: { locale: PublicLocale; company:
         <div className="hidden min-w-0 flex-1 md:block">
           <SiteNav links={links} label={text.menu} />
         </div>
-        <div className="ml-auto md:ml-0">
+        <div className="ml-auto flex items-center md:ml-0">
+          <SelectionLink locale={locale} />
           <Suspense
             fallback={
               <nav aria-label={text.language} className="flex flex-wrap gap-1 text-sm">

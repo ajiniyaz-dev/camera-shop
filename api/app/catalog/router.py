@@ -32,6 +32,7 @@ from app.models import (
     BusinessProfile,
     Category,
     CategoryTranslation,
+    ImportAsset,
     ImportFile,
     ImportJob,
     ImportRow,
@@ -82,10 +83,16 @@ class ProductWrite(BaseModel):
     price: PriceInput = Field(default_factory=lambda: PriceInput(status="on_request"))
     translations: dict[str, TranslationInput] = Field(default_factory=dict)
     specifications: list[SpecificationInput] | None = None
+    lock_category: bool = False
 
 
 class ArchiveBody(BaseModel):
     confirm: bool
+
+
+class DeleteBody(BaseModel):
+    confirm: bool
+    model_display: str = Field(min_length=1, max_length=300)
 
 
 class BrandWrite(BaseModel):
@@ -319,12 +326,15 @@ def update_product(
     _require_refs(db, body.brand_id, body.category_id)
     changes: list[str] = []
     now = datetime.now(timezone.utc)
+    was_draft = product.catalog_status == "draft"
     display = body.model_display.strip()
+    model_changed = False
     if display != product.model_display:
         product.model_display = display
         product.model_raw = display
         product.model_normalized = normalize_model(display)
         product.model_locked = True
+        model_changed = True
         changes.append("model_display")
     option = _blank_none(body.option_label)
     if option != product.option_label:
@@ -339,12 +349,28 @@ def update_product(
         product.category_id = body.category_id
         product.category_locked = True
         changes.append("category")
+    elif body.lock_category and body.category_id is not None and not product.category_locked:
+        product.category_locked = True
+        changes.append("category")
     if body.product_kind != product.product_kind:
         product.product_kind = body.product_kind
         changes.append("product_kind")
     if body.stock_status != product.stock_status:
         product.stock_status = body.stock_status
         changes.append("stock_status")
+    if model_changed and was_draft:
+        taken = set(db.scalars(select(Product.slug).where(Product.id != product.id)).all())
+        source_row = product.source_record.source_row if product.source_record is not None else 0
+        new_slug = product_slug(
+            _brand_name(db, product.brand_id),
+            product.model_display,
+            product.option_label,
+            source_row,
+            taken,
+        )
+        if new_slug != product.slug:
+            product.slug = new_slug
+            changes.append("slug")
     if body.catalog_status != product.catalog_status:
         product.catalog_status = body.catalog_status
         changes.append("catalog_status")
@@ -369,6 +395,7 @@ def update_product(
         action = "product_archived"
     _audit(db, request, settings, admin, action, "product", product.id, {"changes": changes})
     _commit(db)
+    db.expire_all()
     return _product_detail(_product_or_404(db, product.id))
 
 
@@ -390,6 +417,39 @@ def archive_product(
     _audit(db, request, settings, admin, "product_archived", "product", product.id, {"catalog_status": "archived"})
     _commit(db)
     return _product_detail(product)
+
+
+@router.post("/products/{product_id}/delete", status_code=204)
+def delete_product(
+    product_id: int,
+    body: DeleteBody,
+    request: Request,
+    response: Response,
+    admin: AdminUser = Depends(require_admin_write),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings_from_request),
+) -> Response:
+    _no_store(response)
+    if not body.confirm:
+        raise HTTPException(status_code=422, detail="Confirm before deleting this product.")
+    product = _product_or_404(db, product_id)
+    if body.model_display != product.model_display:
+        raise HTTPException(status_code=422, detail="The model does not match this product.")
+    image_keys = [image.object_key for image in product.images]
+    _audit(
+        db,
+        request,
+        settings,
+        admin,
+        "product_deleted",
+        "product",
+        product.id,
+        {"model_display": product.model_display, "catalog_status": product.catalog_status},
+    )
+    db.delete(product)
+    _commit(db)
+    _remove_unshared_media(db, settings, image_keys)
+    return Response(status_code=204)
 
 
 @router.post("/products/{product_id}/images", status_code=201)
@@ -910,7 +970,43 @@ def _replace_translations(
     return changed
 
 
+def _pair(name: str | None, value: str | None) -> tuple[str, str]:
+    cleaned_name = (name or "").strip()
+    cleaned_value = (value or "").strip()
+    if not cleaned_name or not cleaned_value:
+        return "", ""
+    return cleaned_name, cleaned_value
+
+
+def _incoming_spec_key(spec: SpecificationInput) -> tuple[object, ...]:
+    return (
+        spec.sort_order,
+        spec.name_ru.strip(),
+        spec.value_ru.strip(),
+        *_pair(spec.name_uz, spec.value_uz),
+        *_pair(spec.name_en, spec.value_en),
+    )
+
+
+def _stored_spec_key(spec: ProductSpecification) -> tuple[object, ...]:
+    by_locale = {item.locale: item for item in spec.translations}
+    russian = by_locale.get("ru")
+    uzbek = by_locale.get("uz")
+    english = by_locale.get("en")
+    return (
+        spec.sort_order,
+        (russian.name if russian is not None else "").strip(),
+        (russian.value if russian is not None else "").strip(),
+        *_pair(uzbek.name if uzbek is not None else None, uzbek.value if uzbek is not None else None),
+        *_pair(english.name if english is not None else None, english.value if english is not None else None),
+    )
+
+
 def _replace_specifications(db: Session, product: Product, specs: list[SpecificationInput]) -> bool:
+    incoming = [_incoming_spec_key(spec) for spec in specs]
+    stored = [_stored_spec_key(spec) for spec in sorted(product.specifications, key=lambda item: (item.sort_order, item.id))]
+    if incoming == stored:
+        return False
     for existing in list(product.specifications):
         db.delete(existing)
     db.flush()
@@ -1015,6 +1111,20 @@ def _store_image(root: Path, content: bytes) -> dict[str, str]:
         partial.write_bytes(content)
         partial.replace(path)
     return {"object_key": key, "mime_type": mime, "sha256": digest}
+
+
+def _remove_unshared_media(db: Session, settings: Settings, keys: list[str]) -> None:
+    for key in set(keys):
+        image_used = db.scalar(select(func.count()).select_from(ProductImage).where(ProductImage.object_key == key))
+        import_used = db.scalar(select(func.count()).select_from(ImportAsset).where(ImportAsset.object_key == key))
+        logo_used = db.scalar(
+            select(func.count()).select_from(BusinessProfile).where(BusinessProfile.logo_object_key == key)
+        )
+        if image_used or import_used or logo_used:
+            continue
+        path = _media_path(Path(settings.media_root), key)
+        if path.is_file():
+            path.unlink()
 
 
 def _media_path(root: Path, key: str) -> Path:

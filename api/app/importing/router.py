@@ -27,6 +27,11 @@ _READ_CHUNK = 1024 * 1024
 
 class RowResolutionBody(BaseModel):
     resolution: str = Field(pattern="^(keep_current|accept_excel|accept_new|exclude)$")
+    field: str | None = Field(default=None, max_length=40)
+    field_resolution: str | None = Field(default=None, pattern="^(keep_current|accept_excel)$")
+
+
+_OVERRIDE_FIELDS = {"model_display", "option_label", "public_price", "description", "brand", "category"}
 
 
 class AssetExclusionBody(BaseModel):
@@ -268,6 +273,8 @@ def resolve_row(
         effective_action = str((row.proposal or {}).get("action_before_exclude") or row.action)
     if effective_action == "conflict" and body.resolution in {"accept_excel", "accept_new"}:
         raise HTTPException(status_code=409, detail="A conflicting row cannot choose one Excel value.")
+    if row.action == "exclude" and (body.field or body.field_resolution):
+        raise HTTPException(status_code=409, detail="An excluded row cannot override one field.")
     proposal = dict(row.proposal or {})
     if body.resolution == "exclude":
         proposal.setdefault("action_before_exclude", row.action)
@@ -278,10 +285,15 @@ def resolve_row(
             row.action = str(proposal.get("action_before_exclude") or "update")
         row.resolution = body.resolution
         resolutions = dict(proposal.get("field_resolutions") or {})
-        if body.resolution == "accept_excel":
-            for key, value in list(resolutions.items()):
-                if value == "keep_current":
-                    resolutions[key] = "accept_excel"
+        if body.field or body.field_resolution:
+            if not body.field or not body.field_resolution:
+                raise HTTPException(status_code=422, detail="A field override needs both the field and its resolution.")
+            if body.field not in _OVERRIDE_FIELDS:
+                raise HTTPException(status_code=422, detail="That field cannot be overridden.")
+            changes = list(proposal.get("field_changes") or [])
+            if body.field not in changes:
+                raise HTTPException(status_code=409, detail="That field is not a change on this row.")
+            resolutions[body.field] = body.field_resolution
         proposal["field_resolutions"] = resolutions
     row.proposal = proposal
     flag_modified(row, "proposal")

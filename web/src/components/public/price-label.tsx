@@ -1,13 +1,15 @@
+import { PriceMetaIcon } from "@/components/public/catalog-icons";
+import { formatPublicPrice } from "@/lib/price-format";
 import type { PublicPrice } from "@/lib/public-api";
-import { messages, type PublicLocale } from "@/lib/public-i18n";
+import type { PublicLocale } from "@/lib/public-i18n";
 
 export function PriceLabel({ price, locale }: { price: PublicPrice; locale: PublicLocale }) {
-  const text = messages[locale];
-  if (price.status === "numeric" && price.amount) {
-    return <p className="text-lg font-semibold text-navy">${price.amount}</p>;
-  }
-  if (price.status === "on_request") {
-    return <p className="text-lg font-semibold text-navy">{text.onRequest}</p>;
-  }
-  return null;
+  const label = formatPublicPrice(price, locale);
+  if (!label) return null;
+  return (
+    <p className="flex items-center gap-2 text-lg font-semibold leading-none text-navy">
+      {price.status === "numeric" ? <PriceMetaIcon /> : null}
+      <span>{label}</span>
+    </p>
+  );
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -10,20 +11,22 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.dependencies import get_db
-from app.brand_groups import is_other_brand
 from app.models import (
     Brand,
     Category,
     Product,
     ProductImage,
+    ProductSourceRecord,
     ProductSpecification,
     ProductTranslation,
 )
 from app.models.profile import BusinessProfile
+from app.pricing import EZVIZ_FACTOR, HIKVISION_FACTOR, public_display_price
 
 LOCALES = ("ru", "uz", "en")
 PUBLIC_IMAGES = {"high", "confirmed"}
 MAX_PAGE_SIZE = 48
+_CYRILLIC = re.compile(r"[А-Яа-яЁё]")
 router = APIRouter(prefix="/api/public", tags=["public"])
 
 
@@ -50,12 +53,6 @@ def _clean(value: str | None) -> str | None:
 def _like(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
-
-
-def _money(value: Decimal | None) -> str | None:
-    if value is None:
-        return None
-    return f"{value.quantize(Decimal('0.01'))}"
 
 
 def _text(rows: list, locale: str, attr: str) -> tuple[str | None, bool]:
@@ -87,20 +84,16 @@ def _published_filter():
     return and_(Product.catalog_status == "published", Product.deleted_at.is_(None))
 
 
-def _other_without_published_products(db: Session, brands: list[Brand]) -> set[int]:
-    other_ids = [
-        brand.id
-        for brand in brands
-        if is_other_brand(brand.slug, [item.name for item in brand.translations])
-    ]
-    if not other_ids:
+def _brands_without_published_products(db: Session, brands: list[Brand]) -> set[int]:
+    brand_ids = [brand.id for brand in brands]
+    if not brand_ids:
         return set()
     populated = set(
         db.scalars(
-            select(Product.brand_id).where(Product.brand_id.in_(other_ids), _published_filter())
+            select(Product.brand_id).where(Product.brand_id.in_(brand_ids), _published_filter())
         ).all()
     )
-    return {brand_id for brand_id in other_ids if brand_id not in populated}
+    return {brand_id for brand_id in brand_ids if brand_id not in populated}
 
 
 def _navigable_brands(db: Session) -> list[Brand]:
@@ -112,7 +105,7 @@ def _navigable_brands(db: Session) -> list[Brand]:
             .order_by(Brand.slug, Brand.id)
         ).all()
     )
-    hidden = _other_without_published_products(db, brands)
+    hidden = _brands_without_published_products(db, brands)
     return [brand for brand in brands if brand.id not in hidden]
 
 
@@ -123,6 +116,7 @@ def _product_options():
         selectinload(Product.brand).selectinload(Brand.translations),
         selectinload(Product.category).selectinload(Category.translations),
         selectinload(Product.specifications).selectinload(ProductSpecification.translations),
+        selectinload(Product.source_record),
     )
 
 
@@ -223,13 +217,35 @@ def _category_public(index: dict[int, Category], category: Category | None, loca
 
 
 def _price(product: Product) -> dict[str, object]:
-    if product.public_price_status == "numeric":
-        return {
-            "status": "numeric",
-            "amount": _money(product.public_price_amount),
-            "currency": "USD",
-        }
-    return {"status": product.public_price_status, "amount": None, "currency": None}
+    source = product.source_record
+    return public_display_price(
+        public_price_status=product.public_price_status,
+        public_price_amount=product.public_price_amount,
+        source_code=source.source_code if source is not None else None,
+    )
+
+
+def _displayed_amount_column():
+    """SQL expression for the public soʻm amount. Matches public_display_price."""
+    return case(
+        (
+            and_(
+                Product.public_price_status == "numeric",
+                ProductSourceRecord.source_code == "hikvision",
+                Product.public_price_amount.is_not(None),
+            ),
+            Product.public_price_amount * HIKVISION_FACTOR,
+        ),
+        (
+            and_(
+                Product.public_price_status == "numeric",
+                ProductSourceRecord.source_code == "ezviz",
+                Product.public_price_amount.is_not(None),
+            ),
+            Product.public_price_amount * EZVIZ_FACTOR,
+        ),
+        else_=None,
+    )
 
 
 def _image(image: ProductImage, alt: str) -> dict[str, object]:
@@ -252,9 +268,12 @@ def _card(product: Product, locale: str, index: dict[int, Category]) -> dict[str
     if not name:
         name = product.model_display
         name_fallback = False
+    elif name_fallback and _CYRILLIC.search(name) is None:
+        name_fallback = False
     images = _visible_images(product)
     return {
         "slug": product.slug,
+        "product_kind": product.product_kind,
         "model_display": product.model_display,
         "option_label": _clean(product.option_label),
         "name": name,
@@ -312,7 +331,7 @@ def _decimal_bound(value: str | None, field: str) -> Decimal | None:
         amount = Decimal(value.strip())
     except InvalidOperation as exc:
         raise HTTPException(status_code=422, detail=f"{field} is invalid.") from exc
-    if amount < 0 or amount != amount.quantize(Decimal("0.01")):
+    if amount < 0 or amount != amount.quantize(Decimal("1")):
         raise HTTPException(status_code=422, detail=f"{field} is invalid.")
     return amount
 
@@ -471,7 +490,7 @@ def brand_detail(slug: str, locale: str = Query(), db: Session = Depends(get_db)
     )
     if brand is None:
         raise HTTPException(status_code=404, detail="Brand not found.")
-    if brand.id in _other_without_published_products(db, [brand]):
+    if brand.id in _brands_without_published_products(db, [brand]):
         raise HTTPException(status_code=404, detail="Brand not found.")
     public = _brand(brand, selected)
     if public is None:
@@ -528,17 +547,18 @@ def products(
             .where(Brand.slug == brand, Brand.is_published.is_(True))
             .options(selectinload(Brand.translations))
         )
-        if matched_brand is None or matched_brand.id in _other_without_published_products(db, [matched_brand]):
+        if matched_brand is None or matched_brand.id in _brands_without_published_products(db, [matched_brand]):
             raise HTTPException(status_code=404, detail="Brand not found.")
         filters.append(Product.brand_id == matched_brand.id)
+    displayed = _displayed_amount_column()
     if low is not None or high is not None:
-        filters.append(Product.public_price_status == "numeric")
+        filters.append(displayed.is_not(None))
         if low is not None:
-            filters.append(Product.public_price_amount >= low)
+            filters.append(displayed >= low)
         if high is not None:
-            filters.append(Product.public_price_amount <= high)
-    total = db.scalar(select(func.count()).select_from(Product).where(*filters)) or 0
-    amount = case((Product.public_price_status == "numeric", Product.public_price_amount), else_=None)
+            filters.append(displayed <= high)
+    base = select(Product).outerjoin(ProductSourceRecord, ProductSourceRecord.product_id == Product.id)
+    total = db.scalar(select(func.count()).select_from(Product).outerjoin(ProductSourceRecord, ProductSourceRecord.product_id == Product.id).where(*filters)) or 0
     name_sort = func.coalesce(
         select(ProductTranslation.localized_name)
         .where(ProductTranslation.product_id == Product.id, ProductTranslation.locale == selected)
@@ -550,12 +570,11 @@ def products(
         "model": (Product.model_display.asc(), Product.id.asc()),
         "name": (name_sort.asc(), Product.id.asc()),
         "newest": (Product.updated_at.desc(), Product.id.desc()),
-        "price_asc": (amount.asc().nulls_last(), Product.id.asc()),
-        "price_desc": (amount.desc().nulls_last(), Product.id.asc()),
+        "price_asc": (displayed.asc().nulls_last(), Product.id.asc()),
+        "price_desc": (displayed.desc().nulls_last(), Product.id.asc()),
     }[sort]
     rows = db.scalars(
-        select(Product)
-        .where(*filters)
+        base.where(*filters)
         .options(*_product_options())
         .order_by(*order)
         .offset((page - 1) * page_size)

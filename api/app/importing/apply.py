@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.brand_groups import is_other_brand, is_other_brand_name
+from app.importing.normalize import same_category_name
 from app.importing.slug import allocate_slug, product_slug, slug_part
 from app.models import (
     AdminAuditLog,
@@ -117,7 +118,9 @@ def apply_job(
         row.applied = True
         touched_products.add(product.id)
 
-    absent = _mark_absent(session, source_codes, touched_products, now)
+    ambiguous = _ambiguous_product_ids(rows)
+    _clear_ambiguous_absence(session, source_codes, ambiguous)
+    absent = _mark_absent(session, source_codes, touched_products | ambiguous, now)
     result = {
         "status": "applied",
         "counts": counts,
@@ -455,6 +458,30 @@ def _link_images(
     return linked
 
 
+def _ambiguous_product_ids(rows: list[ImportRow]) -> set[int]:
+    found: set[int] = set()
+    for row in rows:
+        for item in (row.proposal or {}).get("ambiguous_product_ids") or []:
+            if isinstance(item, int):
+                found.add(item)
+    return found
+
+
+def _clear_ambiguous_absence(session: Session, source_codes: set[str], product_ids: set[int]) -> None:
+    """A conflicting row is still present in the file. Do not call that product absent."""
+
+    if not source_codes or not product_ids:
+        return
+    records = session.scalars(
+        select(ProductSourceRecord).where(
+            ProductSourceRecord.product_id.in_(product_ids),
+            ProductSourceRecord.source_code.in_(source_codes),
+        )
+    ).all()
+    for record in records:
+        record.absent_from_latest = False
+
+
 def _mark_absent(session: Session, source_codes: set[str], touched: set[int], now: datetime) -> int:
     if not source_codes:
         return 0
@@ -632,6 +659,8 @@ class _CategoryBook:
                 continue
             if category.source_code != (source_code or None) or category.source_worksheet != worksheet:
                 continue
-            if any(item.locale == "ru" and item.name == name for item in category.translations):
+            if any(
+                item.locale == "ru" and same_category_name(item.name, name) for item in category.translations
+            ):
                 return category
         return None

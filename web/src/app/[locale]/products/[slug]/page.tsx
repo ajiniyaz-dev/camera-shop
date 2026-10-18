@@ -3,9 +3,13 @@ import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/public/breadcrumbs";
 import { focusLight } from "@/components/public/brand-mark";
+import { ModelMetaIcon } from "@/components/public/catalog-icons";
+import { CatalogLinks } from "@/components/public/catalog-links";
 import { JsonLd } from "@/components/public/json-ld";
 import { PriceLabel } from "@/components/public/price-label";
 import { ProductGallery } from "@/components/public/product-gallery";
+import { SelectionButton } from "@/components/public/selection-button";
+import { billingPeriod, isServicePlan, showOriginalNote } from "@/lib/presentation";
 import { categoryPath, publicGetOrNotFound, requireLocale, type PublicDetail } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
 import { breadcrumbJson, pageMetadata, productDescription, productJson, productTitle } from "@/lib/seo";
@@ -41,6 +45,7 @@ export default async function ProductPage({
   const product = await publicGetOrNotFound<PublicDetail>(
     `/api/public/products/${encodeURIComponent(slug)}?locale=${locale}`,
   );
+  const period = billingPeriod(product.option_label);
   const crumbs = [
     { name: text.home, path: `/${locale}` },
     { name: text.catalog, path: `/${locale}/catalog` },
@@ -58,35 +63,28 @@ export default async function ProductPage({
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
         <ProductGallery images={product.images} emptyLabel={text.noImage} label={text.images} />
         <section className="space-y-4 border border-navy/10 bg-white p-6 shadow-sm">
-          {product.brand ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
-              <Link href={`/${locale}/brands/${product.brand.slug}`} className={`hover:underline ${focusLight}`}>
-                {product.brand.name}
-              </Link>
-            </p>
-          ) : null}
+          {isServicePlan(product) ? <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal">{text.service}</p> : null}
           <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy">{product.name}</h1>
-          {product.translation_fallback ? <p className="text-sm text-navy/60">{text.fallback}</p> : null}
-          <p className="text-sm text-navy/80">
-            {text.model}: {product.model_display}
-            {product.option_label ? ` · ${product.option_label}` : ""}
+          {showOriginalNote(product.translation_fallback, product.name) ? <p className="text-sm text-navy/60">{text.fallback}</p> : null}
+          <p className="flex items-start gap-2 text-sm text-navy/80">
+            <ModelMetaIcon />
+            <span className="min-w-0">
+              {text.model}: {product.model_display}
+              {!period && product.option_label ? ` · ${product.option_label}` : ""}
+            </span>
           </p>
-          {product.category ? (
-            <p className="text-sm">
-              <span className="text-navy/70">{text.category}: </span>
-              <Link
-                href={categoryPath(locale, product.category.slug, product.category.parent_slug)}
-                className={`font-medium text-brand underline-offset-4 hover:underline ${focusLight}`}
-              >
-                {product.category.name}
-              </Link>
+          {period ? (
+            <p className="pl-[1.375rem] text-sm text-navy/80">
+              {text.billing}: {period === "monthly" ? text.billingMonthly : text.billingYearly}
             </p>
           ) : null}
+          <CatalogLinks locale={locale} brand={product.brand} category={product.category} />
           <div className="border-t border-navy/10 pt-4">
             <PriceLabel price={product.price} locale={locale} />
           </div>
           {product.out_of_stock ? <p className="text-sm font-medium text-red-800">{text.outOfStock}</p> : null}
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
+            <SelectionButton slug={product.slug} locale={locale} />
             <Link
               href={`/${locale}/contact`}
               className={`inline-flex min-h-11 items-center justify-center bg-brand px-5 text-sm font-medium text-white hover:bg-navy ${focusLight}`}
@@ -119,7 +117,7 @@ export default async function ProductPage({
                   <tr key={`${spec.name}-${spec.value}`} className="border-t border-navy/10">
                     <th scope="row" className="w-2/5 bg-mist px-4 py-3 font-medium text-navy">
                       {spec.name}
-                      {spec.translation_fallback ? <span className="mt-1 block text-xs font-normal text-navy/60">{text.fallback}</span> : null}
+                      {showOriginalNote(spec.translation_fallback, spec.name) ? <span className="mt-1 block text-xs font-normal text-navy/60">{text.fallback}</span> : null}
                     </th>
                     <td className="px-4 py-3 text-navy/80">{spec.value}</td>
                   </tr>

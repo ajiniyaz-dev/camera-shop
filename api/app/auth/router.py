@@ -116,26 +116,26 @@ def login(
 @router.post("/logout")
 def logout(
     request: Request,
-    response: Response,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings_from_request),
 ) -> Response:
     record = find_valid_session(db, settings, request.cookies.get(SESSION_COOKIE_NAME))
-    if record is None:
-        clear_auth_cookies(response, settings)
-        return Response(status_code=204, headers=_NO_STORE)
-    try:
-        assert_csrf(request, settings, record)
-    except HTTPException as exc:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail},
-            headers=_NO_STORE,
-        )
-    record.revoked_at = datetime.now(timezone.utc)
-    db.commit()
+    if record is not None:
+        try:
+            assert_csrf(request, settings, record)
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=_NO_STORE,
+            )
+        record.revoked_at = datetime.now(timezone.utc)
+        db.commit()
+    # Cookie deletions have to be on the response that is returned. A second
+    # Response object would drop them and leave the browser holding the cookies.
+    response = Response(status_code=204, headers=_NO_STORE)
     clear_auth_cookies(response, settings)
-    return Response(status_code=204, headers=_NO_STORE)
+    return response
 
 
 @router.get("/me", response_model=AdminStatus)

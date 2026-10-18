@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { useAdminLocale } from "@/components/admin/shell";
 import { adminJson, ApiError } from "@/lib/admin-api";
+import { listStatus } from "@/lib/admin-state";
 import { translate } from "@/lib/i18n";
 
 type Brand = {
@@ -20,11 +21,23 @@ const field = "mt-1 w-full rounded border border-neutral-300 px-3 py-2";
 export default function BrandsPage() {
   const locale = useAdminLocale();
   const [rows, setRows] = useState<Brand[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
 
   function reload() {
-    adminJson<{ brands: Brand[] }>("/api/admin/brands").then((body) => setRows(body.brands));
+    setLoading(true);
+    adminJson<{ brands: Brand[] }>("/api/admin/brands")
+      .then((body) => {
+        setRows(body.brands);
+        setFailed(false);
+      })
+      .catch(() => {
+        setFailed(true);
+        setMessage(translate(locale, "error"));
+      })
+      .finally(() => setLoading(false));
   }
 
   useEffect(reload, []);
@@ -65,7 +78,8 @@ export default function BrandsPage() {
         </button>
       </form>
       {message ? <p className="mt-3 text-sm">{message}</p> : null}
-      {rows.length === 0 ? <p className="mt-6 text-sm">{translate(locale, "empty")}</p> : null}
+      {listStatus(loading, failed, rows.length) === "loading" ? <p className="mt-6 text-sm">{translate(locale, "loading")}</p> : null}
+      {listStatus(loading, failed, rows.length) === "empty" ? <p className="mt-6 text-sm">{translate(locale, "empty")}</p> : null}
       <ul className="mt-4 space-y-3">
         {rows.map((row) => (
           <li key={row.id} className="rounded border border-neutral-200 bg-white p-3">

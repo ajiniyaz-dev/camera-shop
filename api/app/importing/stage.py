@@ -314,6 +314,7 @@ def _load_existing(session: Session, source_code: str) -> list[ExistingSource]:
                 category_locked=product.category_locked,
                 model_locked=product.model_locked,
                 description_locked=_description_locked(product),
+                manual_translation_locales=_manual_translation_locales(product),
             )
         )
     return loaded
@@ -468,6 +469,19 @@ def _ru_description(product: Product) -> str | None:
         if translation.locale == "ru":
             return translation.description
     return None
+
+
+def _manual_translation_locales(product: Product) -> tuple[str, ...]:
+    locales: list[str] = []
+    for translation in product.translations:
+        if translation.locale not in {"uz", "en"}:
+            continue
+        if translation.origin != "manual":
+            continue
+        if not (translation.description or "").strip():
+            continue
+        locales.append(translation.locale)
+    return tuple(sorted(locales))
 
 
 def _description_locked(product: Product) -> bool:

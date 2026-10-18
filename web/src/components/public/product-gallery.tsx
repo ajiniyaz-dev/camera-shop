@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { CameraGlyph, focusLight } from "@/components/public/brand-mark";
+import { ProductPhoto } from "@/components/public/product-photo";
 import type { PublicImage } from "@/lib/public-api";
 
 export function ProductGallery({
@@ -27,13 +28,7 @@ export function ProductGallery({
   return (
     <div className="space-y-3">
       <div className="flex min-h-80 items-center justify-center border border-navy/10 bg-mist p-4">
-        <img
-          src={image.url}
-          alt={image.alt}
-          width={image.width ?? 960}
-          height={image.height ?? 720}
-          className="max-h-[32rem] w-full object-contain"
-        />
+        <ProductPhoto src={image.url} alt={image.alt} width={image.width} height={image.height} limit="gallery" />
       </div>
       {images.length > 1 ? (
         <ul className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label={label}>
@@ -50,7 +45,7 @@ export function ProductGallery({
                     selected ? "border-brand" : "border-navy/10 hover:border-brand/50"
                   }`}
                 >
-                  <img src={item.url} alt="" width={item.width ?? 160} height={item.height ?? 120} className="max-h-full w-full object-contain" />
+                  <ProductPhoto src={item.url} alt="" width={item.width} height={item.height} />
                 </button>
               </li>
             );

@@ -99,7 +99,7 @@ Compare only with `product_source_records` of the same `source_code`.
 | Incoming row | Action |
 | --- | --- |
 | Exact key exists for one product of this source | `update` if any mapped field differs, otherwise `unchanged` |
-| Exact key exists for more than one product | `conflict`. No write |
+| Exact key exists for more than one product, or the same key appears on more than one incoming row | `conflict`. No write. Those products stay in the file for absence tracking and are not marked `absent_from_latest` |
 | No exact key, but exactly one unmatched existing record and exactly one unmatched incoming row share source, worksheet, model, and option | `possible_match`. Excluded until the administrator accepts it |
 | Same normalized model, different key, not a unique pair | Separate products, plus a duplicate warning. No merge |
 | No candidate | `insert` |
@@ -136,11 +136,18 @@ Protected fields: public price, Russian description, option, brand, category, an
 | --- | --- |
 | Field unlocked, or new product | Accept the Excel value |
 | Field locked | `keep_current` |
+| Incoming brand is blank and a brand is already assigned | `keep_current`, with message `brand_absent` |
 | Job flag `replace_prices` | Price conflicts default to `accept_excel` |
 
-The preview lists every locked value that will be kept and, if `replace_prices` is on, every manual price that will be replaced. The administrator can flip a row to the other resolution or exclude the row.
+The preview lists every locked value that will be kept and, if `replace_prices` is on, every manual price that will be replaced. Accepting the row applies the fields that are already `accept_excel`. It does not turn `keep_current` fields into `accept_excel`. A locked field, or a brand kept because the cell was empty, changes only when the review sends that field with `field_resolution` `accept_excel`. The confirmation names the field and both values.
+
+An empty brand cell is not a request to remove the current brand. A different non-empty brand still follows the lock rules above. Category lookup reuses an existing category when the Russian title matches after case-folding and collapsed whitespace, and only when the parent, source, and worksheet are the same. The stored display name and slug stay as they are. Titles that are different after that normalization stay different categories.
+
+If the Russian description differs from the workbook and the product has a non-empty manual Uzbek or English description, the row message is `manual_translations_stale`. Those translations are not overwritten and are not translated automatically. An unchanged Russian description does not add that message. A missing translation does not add it either.
 
 SEO fields, slugs, stock, `hidden` prices, archive status, and `uz` / `en` translations are never written by the importer.
+
+The public UZS amount is not an import field. Apply still writes the stored USD price under the lock and `replace_prices` rules above. The display formula is calculated later from that stored amount and `product_source_records.source_code`.
 
 ## 6. Preview
 
@@ -256,7 +263,9 @@ A sheet without the required headers is an error on that sheet. Other sheets in 
 
 The match key is the unit-separator join of source code, worksheet name, case-folded model, case-folded option, and the SHA-256 of the trimmed description. Unicode dashes are folded to `-` in that key only. The display model keeps the original dash. Staging the same job again deletes that source’s staged rows and assets and inserts the new result. It does not insert a second file for the same source and does not write the live catalog.
 
-Brand for an EZVIZ file is `EZVIZ`. A Hikvision brand is set only when the model or description text contains HiLook, Hikvision, Seagate, WD, Andel, or Cougar. The worksheet name is not a brand. No match, or more than one match, leaves the brand null and adds `brand_unverified` or `brand_ambiguous`.
+Brand for an EZVIZ file is `EZVIZ`. A Hikvision brand is set only when the model or description text contains HiLook, Hikvision, Seagate, WD, Andel, or Cougar. The worksheet name is not a brand. No match, or more than one match, leaves the brand null and adds `brand_unverified` or `brand_ambiguous`. A null brand on an update does not clear an assigned brand unless that field is later set to `accept_excel`.
+
+Category identity is the parent, source code, worksheet, and the Russian title. Matching folds case and internal whitespace. `Ezviz` reuses a stored `EZVIZ` category on the same worksheet and does not rename it or change its slug. A different title, parent, source, or worksheet is a different category.
 
 Image bytes are read from the xlsx package. They are not decoded through Pillow, so the stored checksum is the embedded file. PNG, JPEG, and WebP are accepted after a content check. The same checksum is written once under `objects/{sha256[0:2]}/{sha256}.{ext}`. Anchors on a heading or other non-model row stay `unassigned` even when the drawing extends into the next row. A merged `Фото` range adds `shared_candidate` asset rows for the extra model rows and does not copy the file.
 
@@ -302,9 +311,9 @@ Blocking rows are invalid rows that are not excluded, and `insert`, `update`, `p
 
 ### Conflict resolution
 
-A row id is accepted only when its file belongs to the job in the URL. `keep_current` preserves the live values. `accept_excel` changes every `keep_current` field resolution on that row to `accept_excel`; that is the explicit override of a locked price, description, option, brand, category, or display model. `exclude` removes the row from apply and can be reversed while the job is still `preview`. A conflict cannot be resolved with `accept_excel` or `accept_new`. Heading, blank, and stray rows cannot be turned into products.
+A row id is accepted only when its file belongs to the job in the URL. `keep_current` preserves the live values. `accept_excel` on the row applies fields whose resolution is already `accept_excel` and leaves every `keep_current` field unchanged. The explicit override of one locked price, description, option, brand, category, or display model is a separate body: `field` plus `field_resolution` `accept_excel`. That body changes only the named field, and only when the field is one of the row’s changes. `exclude` removes the row from apply and can be reversed while the job is still `preview`. A field override is rejected while the row is excluded, so accepting one field cannot restore the row. A conflict cannot be resolved with `accept_excel` or `accept_new`. Heading, blank, and stray rows cannot be turned into products.
 
-Possible matches stay `pending`. The matcher records the same field differences and lock defaults as an update, then forces the action back to `possible_match`. Choosing `keep_current` does not change the product and does not mark it absent. Choosing `accept_excel` updates the matched product and replaces its match key. Similar model names are not merged.
+Possible matches stay `pending`. The matcher records the same field differences and lock defaults as an update, then forces the action back to `possible_match`. Choosing `keep_current` does not change the product and does not mark it absent. Choosing `accept_excel` updates the fields that are already `accept_excel` and replaces the match key. It does not override fields that are still `keep_current`. Similar model names are not merged.
 
 Asset exclusion is a list of asset ids on `import_jobs.summary.excluded_asset_ids`. Re-staging the same job replaces the summary, so exclusions belong to the job created by the upload.
 

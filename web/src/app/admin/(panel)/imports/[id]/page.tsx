@@ -57,7 +57,7 @@ type Row = {
   action: string;
   resolution: string;
   matched_product_id: number | null;
-  messages: Array<{ code?: string }>;
+  messages: Array<{ code?: string; locales?: string[] }>;
   proposal: Proposal | null;
   current: Current | null;
   applied: boolean;
@@ -153,7 +153,7 @@ function currentValue(current: Current | null, field: string, emptyLabel: string
   return null;
 }
 
-function overwrittenFields(row: Row): string[] {
+function keptFields(row: Row): string[] {
   const resolutions = row.proposal?.field_resolutions ?? {};
   return Object.entries(resolutions)
     .filter(([, value]) => value === "keep_current")
@@ -206,10 +206,10 @@ export default function ImportDetailPage() {
 
   async function resolve(row: Row, resolution: string) {
     if (resolution === "accept_excel") {
-      const fields = overwrittenFields(row);
+      const fields = keptFields(row);
       const named = fields.map((field) => translate(locale, fieldLabel[field] ?? "price")).join(", ");
       const prompt = named
-        ? `${translate(locale, "acceptExcelConfirm")}\n${translate(locale, "overwriteFields")}: ${named}`
+        ? `${translate(locale, "acceptExcelConfirm")}\n${translate(locale, "keptFields")}: ${named}`
         : translate(locale, "acceptExcelConfirm");
       if (!window.confirm(prompt)) {
         return;
@@ -218,6 +218,26 @@ export default function ImportDetailPage() {
     setMessage("");
     try {
       await adminJson(`/api/admin/imports/${jobId}/rows/${row.id}`, { method: "PATCH" }, { resolution });
+      reload();
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : translate(locale, "error"));
+    }
+  }
+
+  async function resolveField(row: Row, field: string) {
+    const current = currentValue(row.current, field, translate(locale, "emptyValue")) ?? translate(locale, "emptyValue");
+    const incoming = incomingValue(row.proposal, field, translate(locale, "emptyValue"));
+    const prompt = `${translate(locale, "acceptFieldConfirm")}\n${translate(locale, fieldLabel[field] ?? "details")}: ${current} → ${incoming}`;
+    if (!window.confirm(prompt)) {
+      return;
+    }
+    setMessage("");
+    try {
+      await adminJson(
+        `/api/admin/imports/${jobId}/rows/${row.id}`,
+        { method: "PATCH" },
+        { resolution: row.resolution, field, field_resolution: "accept_excel" },
+      );
       reload();
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : translate(locale, "error"));
@@ -338,6 +358,8 @@ export default function ImportDetailPage() {
                 {row.action === "exclude" ? <p>{translate(locale, "excludedRow")}</p> : null}
                 {row.resolution === "pending" ? <p>{translate(locale, "pendingReview")}</p> : null}
                 <p className="text-neutral-600">{row.messages.map((item) => item.code).filter(Boolean).join(", ")}</p>
+                {row.messages.some((item) => item.code === "brand_absent") ? <p>{translate(locale, "brandAbsent")}</p> : null}
+                {row.messages.some((item) => item.code === "manual_translations_stale") ? <p>{translate(locale, "staleTranslations")}</p> : null}
                 {proposal && (row.classification === "product" || row.classification === "service") ? (
                   <p className="mt-2">
                     {translate(locale, "incoming")}: {translate(locale, "price")} {incomingValue(proposal, "public_price", emptyLabel)}; {translate(locale, "brand")} {incomingValue(proposal, "brand", emptyLabel)}; {translate(locale, "category")} {incomingValue(proposal, "category", emptyLabel)}; {translate(locale, "description")} {incomingValue(proposal, "description", emptyLabel)}
@@ -359,6 +381,11 @@ export default function ImportDetailPage() {
                         <li key={field}>
                           {translate(locale, fieldLabel[field] ?? "details")}: {translate(locale, "currentValue")} {currentValue(row.current, field, emptyLabel) ?? emptyLabel}; {translate(locale, "incoming")} {incomingValue(proposal, field, emptyLabel)}; {resolutions[field] ?? row.resolution}
                           {row.current?.locks[field] ? ` · ${translate(locale, "locked")}` : ""}
+                          {preview && row.action !== "exclude" && row.resolution !== "pending" && resolutions[field] === "keep_current" ? (
+                            <button type="button" className="ml-2 underline" onClick={() => resolveField(row, field)}>
+                              {translate(locale, "acceptField")}
+                            </button>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

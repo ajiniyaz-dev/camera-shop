@@ -133,11 +133,13 @@ CHECK (catalog_status IN ('draft', 'published', 'archived'))
 CHECK (product_kind IN ('product', 'service'))
 ```
 
-| Public status | Amount | What visitors see |
+| Public status | Stored amount | What visitors see |
 | --- | --- | --- |
-| `numeric` | required USD | `$` and the amount. One price. No discount |
-| `on_request` | null | Locale request-price label |
+| `numeric` | required USD | One UZS amount from `docs/project-requirements.md`. Hikvision workbook: stored USD × 12000 × 0.8. EZVIZ workbook: stored USD × 12000 × 0.9. The USD amount is not displayed and is not replaced by the formula |
+| `on_request` | null | Locale request-price label. No calculated amount |
 | `hidden` | omitted publicly | No price |
+
+`source_code` on `product_source_records` selects the formula. No display-currency column is required. A numeric product with no `hikvision` or `ezviz` source row has no formula and is not shown as USD.
 
 Zero is a numeric amount only if a future file actually contains zero. A blank cell is not stored as zero. On first import a blank cell still becomes public `on_request`.
 
@@ -174,7 +176,7 @@ No price-history table. Audit is the source snapshot, the import report, and an 
 - Primary key: `(product_id, locale)`.
 - The Excel description is inserted as `locale = ru`, `origin = source`.
 - Uzbek and English rows are not filled with Russian text. A missing description has `origin = empty` or no row. The API fallback flag tells the page to show the Russian description with a translated caption such as “Original description (Russian)”.
-- Import updates the Russian description only when `description_locked` is false or the resolution is `accept_excel`. It never writes `uz` or `en` from the workbook, because the workbook is not a translation.
+- Import updates the Russian description only when that field’s resolution is `accept_excel`. A locked description stays `keep_current`, and accepting the row does not change that field resolution. It never writes `uz` or `en` from the workbook, because the workbook is not a translation. A changed Russian cell is flagged when a manual Uzbek or English description already exists.
 
 ## Specifications
 

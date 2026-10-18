@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { schemaBrand } from "@/lib/other-brand";
+import { productDescription as buildProductDescription, productTitle as buildProductTitle } from "@/lib/product-seo";
 import type { Company, PublicDetail, PublicImage, SearchParams } from "@/lib/public-api";
 import { messages, PUBLIC_LOCALES, type PublicLocale } from "@/lib/public-i18n";
 
@@ -155,23 +156,11 @@ export function titledPage(locale: PublicLocale, path: string, title: string, de
 }
 
 export function productTitle(product: PublicDetail): string {
-  if (product.seo_title) {
-    return product.seo_title;
-  }
-  const brand = product.brand?.name ?? SITE_NAME;
-  return `${product.model_display} — ${brand} | ${SITE_NAME}`;
+  return buildProductTitle(product, SITE_NAME);
 }
 
 export function productDescription(product: PublicDetail): string {
-  if (product.seo_description) {
-    return product.seo_description;
-  }
-  if (product.description && !product.description_fallback) {
-    return product.description;
-  }
-  const parts = [product.brand?.name, product.model_display, product.option_label].filter(Boolean);
-  const head = parts.join(" ");
-  return product.category ? `${head}. ${product.category.name}` : head;
+  return buildProductDescription(product);
 }
 
 type NamedSeo = {
@@ -234,11 +223,11 @@ export function productJson(product: PublicDetail): Record<string, unknown> {
   if (origin && product.images.length > 0) {
     body.image = product.images.map((image) => `${origin}${image.url}`);
   }
-  if (product.price.status === "numeric" && product.price.amount && product.price.currency === "USD") {
+  if (product.price.status === "numeric" && product.price.amount && product.price.currency === "UZS") {
     const offer: Record<string, unknown> = {
       "@type": "Offer",
       price: product.price.amount,
-      priceCurrency: "USD",
+      priceCurrency: "UZS",
     };
     if (product.out_of_stock) {
       offer.availability = "https://schema.org/OutOfStock";

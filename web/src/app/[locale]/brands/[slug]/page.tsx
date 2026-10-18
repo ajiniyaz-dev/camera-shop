@@ -4,6 +4,7 @@ import { Breadcrumbs } from "@/components/public/breadcrumbs";
 import { JsonLd } from "@/components/public/json-ld";
 import { PageHeading } from "@/components/public/page-heading";
 import { ProductListing } from "@/components/public/product-listing";
+import { showOriginalNote } from "@/lib/presentation";
 import { publicGetOrNotFound, requireLocale, type PublicBrand, type SearchParams } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
 import { breadcrumbJson, entityMetadata } from "@/lib/seo";
@@ -42,7 +43,9 @@ export default async function BrandPage({
       <JsonLd data={breadcrumbJson(crumbs)} />
       <Breadcrumbs label={text.navigation} items={crumbs} />
       <PageHeading title={brand.name} description={brand.description} action={{ href: `/${locale}/catalog`, label: text.allProducts }} />
-      {brand.translation_fallback ? <p className="-mt-4 text-sm text-navy/60">{text.fallback}</p> : null}
+      {showOriginalNote(brand.translation_fallback, brand.name) || showOriginalNote(brand.description_fallback, brand.description) ? (
+        <p className="-mt-4 text-sm text-navy/60">{text.fallback}</p>
+      ) : null}
       <ProductListing
         locale={locale}
         pathname={`/${locale}/brands/${slug}`}

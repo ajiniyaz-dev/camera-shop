@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from app.importing.normalize import normalize_option
+from app.importing.normalize import normalize_option, same_category_name
 from app.importing.parse import ParsedRow
 
 _LOCKED_FIELDS = {
@@ -40,6 +40,7 @@ class ExistingSource:
     category_locked: bool
     model_locked: bool
     description_locked: bool
+    manual_translation_locales: tuple[str, ...] = ()
 
 
 def match_rows(
@@ -70,15 +71,15 @@ def match_rows(
         incoming_keys.setdefault(str(row.proposal["match_key"]), []).append(row)
 
     matched_ids: set[int] = set()
+    ambiguous_ids: set[int] = set()
     unresolved: list[ParsedRow] = []
     for row in candidates:
         key = str(row.proposal["match_key"])
-        if len(incoming_keys[key]) > 1:
-            _conflict(row, "duplicate_match_key")
-            continue
         found = by_key.get(key, [])
-        if len(found) > 1:
-            _conflict(row, "duplicate_match_key")
+        if len(incoming_keys[key]) > 1 or len(found) > 1:
+            ids = [record.product_id for record in found]
+            ambiguous_ids.update(ids)
+            _conflict(row, "duplicate_match_key", ids)
             continue
         if len(found) == 1:
             _compare(row, found[0], replace_prices=replace_prices)
@@ -115,7 +116,11 @@ def match_rows(
             row.proposal["field_changes"] = []
 
     _warn_duplicate_models(candidates)
-    return sorted(record.product_id for record in existing if record.product_id not in matched_ids)
+    return sorted(
+        record.product_id
+        for record in existing
+        if record.product_id not in matched_ids and record.product_id not in ambiguous_ids
+    )
 
 
 def _compare(row: ParsedRow, record: ExistingSource, *, replace_prices: bool) -> None:
@@ -128,9 +133,11 @@ def _compare(row: ParsedRow, record: ExistingSource, *, replace_prices: bool) ->
         changes.append("option_label")
     if _description(proposal) != _clean(record.description):
         changes.append("description")
-    if proposal["brand"] != record.brand_name:
+    incoming_brand = proposal.get("brand")
+    empty_brand = _brand_missing(incoming_brand) and bool(record.brand_name)
+    if empty_brand or incoming_brand != record.brand_name:
         changes.append("brand")
-    if proposal["category_name"] != record.category_name:
+    if not same_category_name(record.category_name, proposal.get("category_name")):
         changes.append("category")
     if _price_differs(proposal, record):
         changes.append("public_price")
@@ -147,6 +154,11 @@ def _compare(row: ParsedRow, record: ExistingSource, *, replace_prices: bool) ->
             row.messages.append({"code": "hidden_price_preserved"})
             locked_kept = True
             continue
+        if field_name == "brand" and empty_brand:
+            resolutions[field_name] = "keep_current"
+            row.messages.append({"code": "brand_absent"})
+            locked_kept = True
+            continue
         lock_name = _LOCKED_FIELDS[field_name]
         locked = bool(getattr(record, lock_name))
         if field_name == "public_price" and locked and replace_prices:
@@ -159,6 +171,10 @@ def _compare(row: ParsedRow, record: ExistingSource, *, replace_prices: bool) ->
             continue
         resolutions[field_name] = "accept_excel"
 
+    if "description" in changes and record.manual_translation_locales:
+        row.messages.append(
+            {"code": "manual_translations_stale", "locales": list(record.manual_translation_locales)}
+        )
     proposal["field_changes"] = changes
     proposal["field_resolutions"] = resolutions
     row.matched_product_id = record.product_id
@@ -171,12 +187,13 @@ def _compare(row: ParsedRow, record: ExistingSource, *, replace_prices: bool) ->
     row.messages = _sorted_messages(row.messages)
 
 
-def _conflict(row: ParsedRow, code: str) -> None:
+def _conflict(row: ParsedRow, code: str, product_ids: list[int] | None = None) -> None:
     row.action = "conflict"
     row.resolution = "pending"
     row.matched_product_id = None
     row.proposal["field_changes"] = []
     row.proposal["field_resolutions"] = {}
+    row.proposal["ambiguous_product_ids"] = sorted(set(product_ids or []))
     row.messages.append({"code": code})
     row.messages = _sorted_messages(row.messages)
 
@@ -225,6 +242,10 @@ def _price_differs(proposal: dict[str, Any], record: ExistingSource) -> bool:
     return Decimal(str(amount)) != Decimal(record.public_price_amount)
 
 
+def _brand_missing(value: object) -> bool:
+    return not isinstance(value, str) or not value.strip()
+
+
 def _description(proposal: dict[str, Any]) -> str | None:
     return _clean(proposal.get("description"))
 
@@ -244,5 +265,9 @@ def _sorted_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if code in seen:
             continue
         seen.add(code)
-        ordered.append({"code": code})
+        kept: dict[str, Any] = {"code": code}
+        locales = message.get("locales")
+        if isinstance(locales, list) and locales:
+            kept["locales"] = [str(item) for item in locales]
+        ordered.append(kept)
     return ordered

@@ -141,6 +141,16 @@ def _csrf_headers(token: str, origin: str = "http://testserver") -> dict[str, st
     return {"Origin": origin, "X-CSRF-Token": token}
 
 
+def _assert_cookies_cleared(response) -> None:
+    cleared = response.headers.get_list("set-cookie")
+    session = next(item for item in cleared if item.lower().startswith("hikvision_session="))
+    csrf = next(item for item in cleared if item.lower().startswith("hikvision_csrf="))
+    assert "max-age=0" in session.lower()
+    assert "path=/api" in session.lower()
+    assert "max-age=0" in csrf.lower()
+    assert "path=/" in csrf.lower()
+
+
 def test_non_admin_role_is_forbidden() -> None:
     user = AdminUser(email="staff@example.com", password_hash="stored-hash", role="editor", is_active=True)
     with pytest.raises(HTTPException) as caught:
@@ -327,6 +337,7 @@ def test_me_requires_a_valid_session_and_logout_revokes_it(engine, client: TestC
     session_token = client.cookies.get("hikvision_session")
     logged_out = client.post("/api/auth/logout", headers=_csrf_headers(csrf))
     assert logged_out.status_code == 204
+    _assert_cookies_cleared(logged_out)
     assert client.get("/api/auth/me").status_code == 401
     client.cookies.set("hikvision_session", session_token)
     assert client.get("/api/auth/me").status_code == 401
@@ -364,6 +375,10 @@ def test_expired_and_revoked_sessions_are_rejected(engine, client: TestClient, d
         db.close()
     client.cookies.set("hikvision_session", expired)
     assert client.get("/api/auth/me").status_code == 401
+    assert client.get("/api/admin/dashboard").status_code == 401
+    anonymous = client.post("/api/auth/logout")
+    assert anonymous.status_code == 204
+    _assert_cookies_cleared(anonymous)
     client.cookies.set("hikvision_session", revoked)
     assert client.get("/api/auth/me").status_code == 401
     client.cookies.set("hikvision_session", "not-a-real-session")

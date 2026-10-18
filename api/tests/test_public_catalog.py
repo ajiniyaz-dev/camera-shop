@@ -20,8 +20,10 @@ from app.models import (
     BusinessProfile,
     Category,
     CategoryTranslation,
+    ImportJob,
     Product,
     ProductImage,
+    ProductSourceRecord,
     ProductSpecification,
     ProductSpecificationTranslation,
     ProductTranslation,
@@ -181,9 +183,47 @@ def _translation(product: Product, locale: str, name: str | None, description: s
     )
 
 
+def _source(
+    db: Session,
+    product: Product,
+    *,
+    source_code: str,
+    job_id: int,
+    worksheet: str = "IP камеры",
+    row: int = 2,
+) -> None:
+    workbook = "Hikvision pr.xlsx" if source_code == "hikvision" else "Ezviz pr.xlsx"
+    db.add(
+        ProductSourceRecord(
+            product_id=product.id,
+            source_code=source_code,
+            source_workbook=workbook,
+            source_worksheet=worksheet,
+            source_row=row,
+            source_model_raw=product.model_raw,
+            source_price_kind="numeric" if product.public_price_status == "numeric" else "blank",
+            source_price_amount=product.public_price_amount if product.public_price_status == "numeric" else None,
+            match_key=f"{source_code}|{worksheet}|{product.slug}|{row}",
+            first_job_id=job_id,
+            last_job_id=job_id,
+        )
+    )
+
+
 def _seed(engine) -> None:
     db = Session(bind=engine)
     try:
+        admin = AdminUser(email="public-seed@example.com", password_hash=hash_password(PASSWORD), role="admin")
+        db.add(admin)
+        db.flush()
+        job = ImportJob(
+            status="applied",
+            created_by=admin.id,
+            approved_by=admin.id,
+            applied_at=datetime.now(timezone.utc),
+        )
+        db.add(job)
+        db.flush()
         brand = Brand(slug="hikvision", is_published=True)
         brand.translations.append(BrandTranslation(locale="ru", name="Hikvision"))
         brand.translations.append(BrandTranslation(locale="en", name="Hikvision"))
@@ -338,6 +378,21 @@ def _seed(engine) -> None:
         for index in range(3):
             same = _product(db, slug=f"same-{index}", model_display="SAME")
             _translation(same, "ru", "Одинаковая", None)
+        orphan = _product(
+            db,
+            slug="orphan-cam",
+            model_display="ADMIN-ONLY",
+            public_price_status="numeric",
+            public_price_amount=Decimal("40.00"),
+            public_currency="USD",
+        )
+        _translation(orphan, "ru", "Без источника", None)
+        _source(db, child, source_code="hikvision", job_id=job.id, worksheet="Hilook", row=4)
+        _source(db, parent, source_code="hikvision", job_id=job.id, row=5)
+        _source(db, low, source_code="hikvision", job_id=job.id, row=6)
+        _source(db, high, source_code="ezviz", job_id=job.id, worksheet="Ezviz", row=7)
+        _source(db, request, source_code="hikvision", job_id=job.id, row=8)
+        _source(db, hidden, source_code="hikvision", job_id=job.id, row=9)
         db.commit()
     finally:
         db.close()
@@ -397,12 +452,13 @@ def test_filters_search_sort_and_pagination(client: TestClient, engine) -> None:
     assert [item["slug"] for item in found.json()["products"]] == ["parent-cam"]
     escaped = client.get("/api/public/products", params={"locale": "ru", "q": "%"})
     assert escaped.json()["total"] == 0
+    # Filters use displayed soʻm. priced-high is EZVIZ 20.50 → 221400; priced-low is Hikvision 10 → 96000.
     priced = client.get(
         "/api/public/products",
-        params={"locale": "ru", "min_price": "15.00", "max_price": "25", "sort": "price_asc"},
+        params={"locale": "ru", "min_price": "200000", "max_price": "230000", "sort": "price_asc"},
     )
     assert [item["slug"] for item in priced.json()["products"]] == ["priced-high"]
-    assert priced.json()["products"][0]["price"] == {"status": "numeric", "amount": "20.50", "currency": "USD"}
+    assert priced.json()["products"][0]["price"] == {"status": "numeric", "amount": "221400", "currency": "UZS"}
     ordered = client.get("/api/public/products", params={"locale": "ru", "sort": "price_asc", "page_size": 48})
     order = [item["slug"] for item in ordered.json()["products"]]
     assert order.index("priced-low") < order.index("priced-high") < order.index("request-cam")
@@ -424,6 +480,7 @@ def test_filters_search_sort_and_pagination(client: TestClient, engine) -> None:
     assert client.get("/api/public/products", params={"locale": "ru", "sort": "secret"}).status_code == 422
     assert client.get("/api/public/products", params={"locale": "de"}).status_code == 422
     assert client.get("/api/public/products", params={"locale": "ru", "min_price": "-1"}).status_code == 422
+    assert client.get("/api/public/products", params={"locale": "ru", "min_price": "15.5"}).status_code == 422
     assert client.get(
         "/api/public/products", params={"locale": "ru", "min_price": "30", "max_price": "1"}
     ).status_code == 422
@@ -436,6 +493,7 @@ def test_product_detail_prices_images_and_fallback(client: TestClient, engine) -
     body = detail.json()
     _walk(body)
     assert body["name"] == "Купольная"
+    assert body["product_kind"] == "product"
     assert body["translation_fallback"] is True
     assert body["description"] == "Описание купола"
     assert body["description_fallback"] is True
@@ -448,7 +506,8 @@ def test_product_detail_prices_images_and_fallback(client: TestClient, engine) -
     ]
     assert body["image"]["url"] == "/media/objects/bb/primary.png"
     assert body["image"]["alt"] == "Front"
-    assert body["price"] == {"status": "numeric", "amount": "30.00", "currency": "USD"}
+    # Hilook sheet still uses the Hikvision workbook factor: 30 * 9600 = 288000.
+    assert body["price"] == {"status": "numeric", "amount": "288000", "currency": "UZS"}
     assert body["out_of_stock"] is False
     assert body["category"]["slug"] == "domes"
     assert body["category"]["parent_slug"] == "cameras"
@@ -456,6 +515,7 @@ def test_product_detail_prices_images_and_fallback(client: TestClient, engine) -
     english = client.get("/api/public/products/child-cam", params={"locale": "en"}).json()
     assert english["name"] == "Dome camera"
     assert english["translation_fallback"] is False
+    assert english["price"] == {"status": "numeric", "amount": "288000", "currency": "UZS"}
     requested = client.get("/api/public/products/request-cam", params={"locale": "ru"}).json()
     assert requested["price"] == {"status": "on_request", "amount": None, "currency": None}
     assert requested["out_of_stock"] is True
@@ -464,11 +524,18 @@ def test_product_detail_prices_images_and_fallback(client: TestClient, engine) -
     assert requested["description"] is None
     hidden = client.get("/api/public/products/hidden-price", params={"locale": "ru"}).json()
     assert hidden["price"] == {"status": "hidden", "amount": None, "currency": None}
+    orphan = client.get("/api/public/products/orphan-cam", params={"locale": "ru"}).json()
+    assert orphan["price"] == {"status": "unavailable", "amount": None, "currency": None}
     quiet = client.get("/api/public/products/quiet-cam", params={"locale": "ru"}).json()
     assert quiet["brand"] is None
     assert quiet["category"] is None
     for slug in ("draft-cam", "archived-cam", "deleted-cam", "missing-cam"):
         assert client.get(f"/api/public/products/{slug}", params={"locale": "ru"}).status_code == 404
+    with Session(bind=engine) as db:
+        stored = db.scalar(select(Product).where(Product.slug == "child-cam"))
+        assert stored is not None
+        assert stored.public_price_amount == Decimal("30.00")
+        assert stored.public_currency == "USD"
 
 
 def test_categories_brands_and_company_are_public(client: TestClient, engine) -> None:
@@ -519,6 +586,104 @@ def test_categories_brands_and_company_are_public(client: TestClient, engine) ->
         "email": "desk@example.com",
         "social_links": [{"label": "Channel", "url": "https://example.com/channel"}],
     }
+
+
+def test_category_names_resolve_for_ru_uz_and_en(client: TestClient, engine) -> None:
+    """Category display names come from category_translations; missing locales fall back to Russian."""
+    _seed(engine)
+    with Session(bind=engine) as db:
+        other = Category(slug="drugie-ustroystva", sort_order=2, is_published=True)
+        other.translations.extend(
+            [
+                CategoryTranslation(locale="ru", name="другие устройства"),
+                CategoryTranslation(locale="uz", name="Boshqa qurilmalar"),
+                CategoryTranslation(locale="en", name="Other devices"),
+            ]
+        )
+        incomplete = Category(slug="incomplete-other", sort_order=3, is_published=True)
+        incomplete.translations.append(CategoryTranslation(locale="ru", name="только русский"))
+        db.add_all([other, incomplete])
+        db.commit()
+
+    expected = {
+        "ru": ("другие устройства", False),
+        "uz": ("Boshqa qurilmalar", False),
+        "en": ("Other devices", False),
+    }
+    for locale, (name, fallback) in expected.items():
+        tree = client.get("/api/public/categories", params={"locale": locale})
+        assert tree.status_code == 200
+        by_slug = {item["slug"]: item for item in tree.json()["categories"]}
+        assert by_slug["drugie-ustroystva"]["name"] == name
+        assert by_slug["drugie-ustroystva"]["translation_fallback"] is fallback
+
+        detail = client.get("/api/public/categories/drugie-ustroystva", params={"locale": locale})
+        assert detail.status_code == 200
+        body = detail.json()
+        assert body["name"] == name
+        assert body["translation_fallback"] is fallback
+        assert body["breadcrumb"][-1]["name"] == name
+
+    missing = client.get("/api/public/categories/incomplete-other", params={"locale": "uz"})
+    assert missing.status_code == 200
+    assert missing.json()["name"] == "только русский"
+    assert missing.json()["translation_fallback"] is True
+
+
+def test_product_title_resolves_for_ru_uz_and_en_without_fallback(client: TestClient, engine) -> None:
+    """Localized product titles come from product_translations.localized_name for each locale."""
+    _seed(engine)
+    with Session(bind=engine) as db:
+        product = _product(
+            db,
+            slug="product-gibkiy-perekhod",
+            model_display="гибкий переход",
+            catalog_status="published",
+            public_price_status="numeric",
+            public_price_amount=Decimal("1.50"),
+            public_currency="USD",
+        )
+        _translation(
+            product,
+            "ru",
+            "гибкий переход",
+            "Гибкий переход — элемент для переходного соединения компонентов оборудования.",
+        )
+        _translation(
+            product,
+            "uz",
+            "Egiluvchan o\u2018tish",
+            "Egiluvchan o\u2018tish elementi uskunaning qismlarini ulash uchun mo\u2018ljallangan.",
+        )
+        _translation(
+            product,
+            "en",
+            "Flexible transition",
+            "A flexible transition component is used to connect equipment components.",
+        )
+        db.commit()
+
+    expected = {
+        "ru": "гибкий переход",
+        "uz": "Egiluvchan o\u2018tish",
+        "en": "Flexible transition",
+    }
+    for locale, name in expected.items():
+        detail = client.get("/api/public/products/product-gibkiy-perekhod", params={"locale": locale})
+        assert detail.status_code == 200
+        body = detail.json()
+        assert body["name"] == name
+        assert body["translation_fallback"] is False
+        assert body["model_display"] == "гибкий переход"
+
+        listing = client.get(
+            "/api/public/products",
+            params={"locale": locale, "q": name, "page_size": 48},
+        )
+        assert listing.status_code == 200
+        card = next(item for item in listing.json()["products"] if item["slug"] == "product-gibkiy-perekhod")
+        assert card["name"] == name
+        assert card["translation_fallback"] is False
 
 
 def test_public_routes_do_not_weaken_admin_protection(client: TestClient, engine) -> None:
@@ -639,7 +804,7 @@ def test_other_brand_is_public_only_with_a_published_product(client: TestClient,
             brand_id=other.id,
             catalog_status="published",
         )
-        _translation(assigned, "ru", None, "Разъём")
+        _translation(assigned, "ru", "BNC-1", "Разъём")
         _translation(assigned, "en", None, "Connector")
         bare = _product(db, slug="unbranded-cam", model_display="BNC-2", catalog_status="published")
         _translation(bare, "en", None, "Loose connector")
@@ -660,7 +825,7 @@ def test_other_brand_is_public_only_with_a_published_product(client: TestClient,
     names = {item["slug"]: item["name"] for item in listing.json()["brands"]}
     assert names["hikvision"] == "Hikvision"
     assert names["other"] == "Other"
-    assert names["spare"] == "Spare"
+    assert "spare" not in names
     assert "drugie" not in names
     assert "quiet" not in names
     filtered = client.get("/api/public/products", params={"locale": "en", "brand": "other"})
@@ -678,6 +843,7 @@ def test_other_brand_is_public_only_with_a_published_product(client: TestClient,
     assert "child-cam" in hikvision_slugs
     assert "grouped-cam" not in hikvision_slugs
     assert client.get("/api/public/products", params={"locale": "en", "brand": "drugie"}).status_code == 404
+    assert client.get("/api/public/products", params={"locale": "en", "brand": "spare"}).status_code == 404
     detail = client.get("/api/public/brands/other", params={"locale": "en"})
     assert detail.status_code == 200
     assert detail.json()["name"] == "Other"
@@ -687,6 +853,10 @@ def test_other_brand_is_public_only_with_a_published_product(client: TestClient,
     assert client.get("/api/public/brands/other", params={"locale": "ru"}).json()["name"] == "Другие"
     assert client.get("/api/public/brands/other", params={"locale": "uz"}).json()["name"] == "Boshqalar"
     assert client.get("/api/public/brands/drugie", params={"locale": "ru"}).status_code == 404
+    assert client.get("/api/public/brands/spare", params={"locale": "en"}).status_code == 404
+    model_title = client.get("/api/public/products/grouped-cam", params={"locale": "uz"}).json()
+    assert model_title["name"] == "BNC-1"
+    assert model_title["translation_fallback"] is False
     grouped = client.get("/api/public/products/grouped-cam", params={"locale": "en"}).json()
     assert grouped["brand"]["slug"] == "other"
     assert grouped["description"] == "Connector"
@@ -696,6 +866,6 @@ def test_other_brand_is_public_only_with_a_published_product(client: TestClient,
     assert real["brand"]["slug"] == "hikvision"
     paths = [item["path"] for item in client.get("/api/public/sitemap").json()["entries"]]
     assert "/en/brands/other" in paths
-    assert "/en/brands/spare" in paths
+    assert "/en/brands/spare" not in paths
     assert "/en/brands/hikvision" in paths
     assert not any(path.endswith("/brands/drugie") for path in paths)

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { focusLight } from "@/components/public/brand-mark";
 import { ProductCard } from "@/components/public/product-card";
+import { listingHasActiveFilter } from "@/lib/presentation";
 import { publicGetOrNotFound, type ProductList, type SearchParams } from "@/lib/public-api";
 import { messages, type PublicLocale } from "@/lib/public-i18n";
 
@@ -166,9 +167,19 @@ export async function ProductListing({
         </p>
       ) : (
         <>
-          <p role="status" aria-live="polite" className="text-sm text-navy/70">
-            {text.results}: {data.total}
-          </p>
+          {listingHasActiveFilter({
+            q,
+            minPrice,
+            maxPrice,
+            brand,
+            category,
+            lockedBrand: Boolean(locked?.brand),
+            lockedCategory: Boolean(locked?.category),
+          }) ? (
+            <p role="status" aria-live="polite" className="text-sm text-navy/70">
+              {text.results}: {data.total}
+            </p>
+          ) : null}
           {data.products.length ? (
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {data.products.map((product) => (

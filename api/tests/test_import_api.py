@@ -14,7 +14,19 @@ from app.auth.passwords import hash_password
 from app.config import Settings, get_settings
 from app.importing.apply import apply_job
 from app.main import create_app
-from app.models import AdminUser, ImportJob, ImportRow, Product, ProductImage, ProductSourceRecord, ProductTranslation
+from app.models import (
+    AdminUser,
+    Brand,
+    BrandTranslation,
+    Category,
+    CategoryTranslation,
+    ImportJob,
+    ImportRow,
+    Product,
+    ProductImage,
+    ProductSourceRecord,
+    ProductTranslation,
+)
 from tests.import_builders import (
     ezviz_workbook,
     hikvision_workbook,
@@ -497,10 +509,11 @@ def test_manual_values_absent_products_and_resolution(client: TestClient, engine
         db.close()
     resolved = client.patch(
         f"/api/admin/imports/{job_id}/rows/{row_id}",
-        json={"resolution": "accept_excel"},
+        json={"resolution": "accept_excel", "field": "public_price", "field_resolution": "accept_excel"},
         headers=headers,
     )
     assert resolved.status_code == 200
+    assert resolved.json()["proposal"]["field_resolutions"]["public_price"] == "accept_excel"
     applied = client.post(f"/api/admin/imports/{job_id}/apply", json={"confirm": True}, headers=headers)
     assert applied.status_code == 200
     db = Session(bind=engine)
@@ -645,3 +658,405 @@ def test_excluded_conflict_cannot_accept_one_excel_value(client: TestClient, eng
         headers=headers,
     )
     assert accepted.status_code == 409
+
+
+def _rows(client: TestClient, headers: dict[str, str], job_id: int) -> list[dict]:
+    page = client.get(f"/api/admin/imports/{job_id}/rows", params={"page_size": 100}, headers=headers)
+    assert page.status_code == 200
+    return page.json()["rows"]
+
+
+def _apply_one(client: TestClient, headers: dict[str, str], path: Path):
+    created = _upload(client, headers, path)
+    assert created.status_code == 200
+    job_id = created.json()["id"]
+    applied = client.post(f"/api/admin/imports/{job_id}/apply", json={"confirm": True}, headers=headers)
+    assert applied.status_code == 200
+    return job_id
+
+
+def test_row_accept_excel_does_not_override_a_locked_description(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(path, model="SWITTEX 1,8m", price=3, description="Сетевой фильтр LOGA")
+    _apply_one(client, headers, path)
+
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product))
+        assert product is not None
+        slug = product.slug
+        filters = Category(slug="setevye-filtry", sort_order=1, is_published=True, source_code="hikvision")
+        filters.translations.append(CategoryTranslation(locale="ru", name="Сетевые фильтры"))
+        db.add(filters)
+        db.flush()
+        product.category_id = filters.id
+        product.category_locked = True
+        product.model_locked = True
+        translation = next(item for item in product.translations if item.locale == "ru")
+        translation.description = "SWITTEX 1,8m."
+        translation.description_locked = True
+        translation.origin = "manual"
+        db.commit()
+        product_id = product.id
+    finally:
+        db.close()
+
+    created = _upload(client, headers, path)
+    assert created.status_code == 200
+    job_id = created.json()["id"]
+    row = next(item for item in _rows(client, headers, created.json()["id"]) if item["action"] == "update")
+    resolutions = row["proposal"]["field_resolutions"]
+    assert resolutions["description"] == "keep_current"
+    assert resolutions["category"] == "keep_current"
+    accepted = client.patch(
+        f"/api/admin/imports/{job_id}/rows/{row['id']}",
+        json={"resolution": "accept_excel"},
+        headers=headers,
+    )
+    assert accepted.status_code == 200
+    kept = accepted.json()["proposal"]["field_resolutions"]
+    assert kept["description"] == "keep_current"
+    assert kept["category"] == "keep_current"
+    applied = client.post(f"/api/admin/imports/{job_id}/apply", json={"confirm": True}, headers=headers)
+    assert applied.status_code == 200
+
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        assert product.slug == slug
+        assert product.category_id is not None
+        translation = next(item for item in product.translations if item.locale == "ru")
+        assert translation.description == "SWITTEX 1,8m."
+    finally:
+        db.close()
+
+    created = _upload(client, headers, path)
+    row = next(item for item in _rows(client, headers, created.json()["id"]) if item["action"] == "update")
+    approved = client.patch(
+        f"/api/admin/imports/{created.json()['id']}/rows/{row['id']}",
+        json={"resolution": "keep_current", "field": "description", "field_resolution": "accept_excel"},
+        headers=headers,
+    )
+    assert approved.status_code == 200
+    assert approved.json()["proposal"]["field_resolutions"]["description"] == "accept_excel"
+    assert approved.json()["proposal"]["field_resolutions"]["category"] == "keep_current"
+    applied = client.post(
+        f"/api/admin/imports/{created.json()['id']}/apply", json={"confirm": True}, headers=headers
+    )
+    assert applied.status_code == 200
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        assert product.slug == slug
+        translation = next(item for item in product.translations if item.locale == "ru")
+        assert translation.description == "Сетевой фильтр LOGA"
+    finally:
+        db.close()
+
+
+def test_empty_brand_is_kept_until_an_explicit_field_decision(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(path, model="камера 1", description="без кода")
+    _apply_one(client, headers, path)
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product))
+        assert product is not None
+        brand = Brand(slug="hikvision", is_published=True)
+        brand.translations.append(BrandTranslation(locale="ru", name="Hikvision"))
+        db.add(brand)
+        db.flush()
+        product.brand_id = brand.id
+        db.commit()
+        product_id = product.id
+        brand_id = brand.id
+    finally:
+        db.close()
+
+    created = _upload(client, headers, path)
+    row = next(item for item in _rows(client, headers, created.json()["id"]) if item["action"] == "update")
+    assert row["proposal"]["field_resolutions"]["brand"] == "keep_current"
+    assert any(item["code"] == "brand_absent" for item in row["messages"])
+    applied = client.post(
+        f"/api/admin/imports/{created.json()['id']}/apply", json={"confirm": True}, headers=headers
+    )
+    assert applied.status_code == 200
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        assert product.brand_id == brand_id
+    finally:
+        db.close()
+
+    created = _upload(client, headers, path)
+    row = next(item for item in _rows(client, headers, created.json()["id"]) if item["action"] == "update")
+    approved = client.patch(
+        f"/api/admin/imports/{created.json()['id']}/rows/{row['id']}",
+        json={"resolution": "keep_current", "field": "brand", "field_resolution": "accept_excel"},
+        headers=headers,
+    )
+    assert approved.status_code == 200
+    assert approved.json()["proposal"]["field_resolutions"]["brand"] == "accept_excel"
+    applied = client.post(
+        f"/api/admin/imports/{created.json()['id']}/apply", json={"confirm": True}, headers=headers
+    )
+    assert applied.status_code == 200
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        assert product.brand_id is None
+    finally:
+        db.close()
+
+
+def test_populated_source_brand_is_assigned(client: TestClient, engine, tmp_path: Path) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(path, model="Hikvision DS-2CD", description="камера")
+    _apply_one(client, headers, path)
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product))
+        assert product is not None
+        assert product.brand is not None
+        assert any(item.name == "Hikvision" for item in product.brand.translations)
+    finally:
+        db.close()
+
+
+def test_stale_manual_translations_are_flagged_and_kept(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    original = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(original, description="регистратор")
+    _apply_one(client, headers, original)
+    changed = tmp_path / "Hikvision changed.xlsx"
+    single_hikvision_row(changed, description="другой регистратор")
+    created = _upload(client, headers, changed)
+    row = next(item for item in _rows(client, headers, created.json()["id"]) if item["action"] == "possible_match")
+    assert not any(item["code"] == "manual_translations_stale" for item in row["messages"])
+
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product))
+        assert product is not None
+        product.translations.append(
+            ProductTranslation(locale="uz", description="qo'lda yozilgan", origin="manual", description_locked=True)
+        )
+        product.translations.append(
+            ProductTranslation(locale="en", description="written by hand", origin="manual", description_locked=True)
+        )
+        db.commit()
+        product_id = product.id
+    finally:
+        db.close()
+
+    same = _upload(client, headers, original)
+    same_row = next(item for item in _rows(client, headers, same.json()["id"]) if item["action"] == "unchanged")
+    assert not any(item["code"] == "manual_translations_stale" for item in same_row["messages"])
+    created = _upload(client, headers, changed)
+    row = next(item for item in _rows(client, headers, created.json()["id"]) if item["action"] == "possible_match")
+    warning = next(item for item in row["messages"] if item["code"] == "manual_translations_stale")
+    assert warning["locales"] == ["en", "uz"]
+    accepted = client.patch(
+        f"/api/admin/imports/{created.json()['id']}/rows/{row['id']}",
+        json={"resolution": "accept_excel"},
+        headers=headers,
+    )
+    assert accepted.status_code == 200
+    applied = client.post(
+        f"/api/admin/imports/{created.json()['id']}/apply", json={"confirm": True}, headers=headers
+    )
+    assert applied.status_code == 200
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        by_locale = {item.locale: item.description for item in product.translations}
+        assert by_locale["ru"] == "другой регистратор"
+        assert by_locale["uz"] == "qo'lda yozilgan"
+        assert by_locale["en"] == "written by hand"
+    finally:
+        db.close()
+
+
+def test_duplicate_source_rows_do_not_mark_the_product_absent(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    original = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(original, description="один и тот же текст")
+    _apply_one(client, headers, original)
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product))
+        assert product is not None
+        product.public_price_amount = Decimal("77.00")
+        product.price_locked = True
+        source = product.source_record
+        assert source is not None
+        source.absent_from_latest = True
+        db.commit()
+        product_id = product.id
+    finally:
+        db.close()
+
+    duplicate = tmp_path / "Hikvision duplicate.xlsx"
+    workbook_with_duplicate_model(duplicate)
+    created = _upload(client, headers, duplicate)
+    assert created.status_code == 200
+    summary = created.json()["summary"]["sources"][0]
+    assert summary["counts"]["conflict"] == 2
+    assert summary["absent_product_ids"] == []
+    rows = _rows(client, headers, created.json()["id"])
+    conflicts = [row for row in rows if row["action"] == "conflict"]
+    assert len(conflicts) == 2
+    assert conflicts[0]["proposal"]["ambiguous_product_ids"] == [product_id]
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        assert product.public_price_amount == Decimal("77.00")
+        assert product.source_record is not None
+        assert product.source_record.absent_from_latest is True
+        assert db.scalar(select(func.count()).select_from(Product)) == 1
+    finally:
+        db.close()
+
+    for row in conflicts:
+        excluded = client.patch(
+            f"/api/admin/imports/{created.json()['id']}/rows/{row['id']}",
+            json={"resolution": "exclude"},
+            headers=headers,
+        )
+        assert excluded.status_code == 200
+    applied = client.post(
+        f"/api/admin/imports/{created.json()['id']}/apply", json={"confirm": True}, headers=headers
+    )
+    assert applied.status_code == 200
+    assert applied.json()["status"] == "applied"
+    db = Session(bind=engine)
+    try:
+        product = db.get(Product, product_id)
+        assert product is not None
+        assert product.public_price_amount == Decimal("77.00")
+        assert product.source_record is not None
+        assert product.source_record.absent_from_latest is False
+        assert db.scalar(select(func.count()).select_from(Product)) == 1
+    finally:
+        db.close()
+
+
+def test_excluded_row_cannot_accept_one_field(client: TestClient, engine, tmp_path: Path) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Hikvision pr.xlsx"
+    single_hikvision_row(path, price=40, description="регистратор")
+    _apply_one(client, headers, path)
+    changed = tmp_path / "Hikvision changed.xlsx"
+    single_hikvision_row(changed, price=55, description="другой регистратор")
+    created = _upload(client, headers, changed)
+    row = next(item for item in _rows(client, headers, created.json()["id"]) if item["action"] == "possible_match")
+    excluded = client.patch(
+        f"/api/admin/imports/{created.json()['id']}/rows/{row['id']}",
+        json={"resolution": "exclude"},
+        headers=headers,
+    )
+    assert excluded.status_code == 200
+    override = client.patch(
+        f"/api/admin/imports/{created.json()['id']}/rows/{row['id']}",
+        json={"resolution": "keep_current", "field": "description", "field_resolution": "accept_excel"},
+        headers=headers,
+    )
+    assert override.status_code == 409
+    assert override.json()["detail"] == "An excluded row cannot override one field."
+    stored = next(item for item in _rows(client, headers, created.json()["id"]) if item["id"] == row["id"])
+    assert stored["action"] == "exclude"
+    applied = client.post(
+        f"/api/admin/imports/{created.json()['id']}/apply", json={"confirm": True}, headers=headers
+    )
+    assert applied.status_code == 200
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product))
+        assert product is not None
+        translation = next(item for item in product.translations if item.locale == "ru")
+        assert translation.description == "регистратор"
+        assert product.public_price_amount == Decimal("40.00")
+    finally:
+        db.close()
+
+
+def test_two_files_from_one_source_do_not_stage(client: TestClient, engine, tmp_path: Path) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    first = tmp_path / "Hikvision pr.xlsx"
+    second = tmp_path / "Hikvision other.xlsx"
+    single_hikvision_row(first)
+    single_hikvision_row(second, model="Hikvision NVR-2")
+    rejected = client.post(
+        "/api/admin/imports",
+        files=[
+            ("files", (first.name, first.read_bytes(), MIME)),
+            ("files", (second.name, second.read_bytes(), MIME)),
+        ],
+        headers=headers,
+    )
+    assert rejected.status_code == 422
+    assert rejected.json()["detail"] == "A job can contain only one file for each source."
+    db = Session(bind=engine)
+    try:
+        assert db.scalar(select(func.count()).select_from(Product)) == 0
+        assert db.scalar(select(func.count()).select_from(ImportJob)) == 0
+    finally:
+        db.close()
+
+
+def test_ezviz_category_case_reuses_the_existing_category(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    db = Session(bind=engine)
+    try:
+        category = Category(
+            slug="ezviz", sort_order=0, is_published=True, source_code="ezviz", source_worksheet="Ezviz"
+        )
+        category.translations.append(CategoryTranslation(locale="ru", name="EZVIZ"))
+        db.add(category)
+        db.commit()
+        category_id = category.id
+    finally:
+        db.close()
+    path = tmp_path / "Ezviz pr.xlsx"
+    ezviz_workbook(path)
+    _apply_one(client, headers, path)
+    db = Session(bind=engine)
+    try:
+        categories = db.scalars(select(Category)).all()
+        assert len(categories) == 1
+        stored = categories[0]
+        assert stored.id == category_id
+        assert stored.slug == "ezviz"
+        assert stored.translations[0].name == "EZVIZ"
+        products = db.scalars(select(Product)).all()
+        assert products
+        assert {product.category_id for product in products} == {category_id}
+    finally:
+        db.close()

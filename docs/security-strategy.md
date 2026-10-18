@@ -7,7 +7,7 @@ Baseline for one Ahost VPS. It covers authentication, the public/admin boundary,
 - Public DTOs include only fields marked public in `docs/database-design.md`.
 - Admin DTOs may include provenance, locks, import messages, and internal notes.
 - Public routers do not read `internal_note`, `source_price_header`, `raw_cells`, password hashes, session hashes, or absolute paths.
-- A numeric price is returned as a decimal amount and currency `USD`. The public page adds `$`. No discount field exists on the public schema.
+- Stored numeric prices remain USD decimals on the product row. The public API returns the display amount in `UZS` using the workbook `source_code` formula (Hikvision × 12000 × 0.8, EZVIZ × 12000 × 0.9), half-up to a whole soʻm. The public page shows that one soʻm amount. No discount field exists on the public schema.
 - Request-price rows return status `on_request` and no amount, whether the source cell was explicit `По запросу` or blank. The source kind stays on the admin source record.
 - A hidden price omits the amount.
 - Discount notes on Hilook `F103`, `F106`, `F107`, and `F115` are internal.
@@ -96,7 +96,7 @@ No third-party API key is required for the catalog.
 
 ## Checks before launch
 
-- Public JSON for a numeric EZVIZ price shows USD and no dealer column name.
+- Public JSON for a numeric EZVIZ price shows UZS (stored USD × 12000 × 0.9) and no dealer column name.
 - Public JSON for Hilook `E103` shows 115 and does not show the `F103` note.
 - Public JSON for an explicit `По запросу` row and a blank HDD price both show `on_request` and no amount. Admin detail still shows source kind `blank` for the HDD row.
 - An unauthenticated admin request returns 401.

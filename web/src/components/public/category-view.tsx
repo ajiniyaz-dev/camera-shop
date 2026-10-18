@@ -2,9 +2,11 @@ import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/public/breadcrumbs";
 import { focusLight } from "@/components/public/brand-mark";
+import { CategoryOutlineIcon } from "@/components/public/catalog-icons";
 import { JsonLd } from "@/components/public/json-ld";
 import { PageHeading } from "@/components/public/page-heading";
 import { ProductListing } from "@/components/public/product-listing";
+import { showOriginalNote } from "@/lib/presentation";
 import { categoryApiPath, categoryPath, publicGetOrNotFound, type CategoryDetail, type SearchParams } from "@/lib/public-api";
 import { messages, type PublicLocale } from "@/lib/public-i18n";
 import { breadcrumbJson } from "@/lib/seo";
@@ -40,10 +42,9 @@ export async function CategoryView({
         description={category.description}
         action={{ href: `/${locale}/catalog`, label: text.allProducts }}
       />
-      {category.translation_fallback ? <p className="-mt-4 text-sm text-navy/60">{text.fallback}</p> : null}
-      <p className="text-sm text-navy/70">
-        {text.products}: {category.product_count}
-      </p>
+      {showOriginalNote(category.translation_fallback, category.name) || showOriginalNote(category.description_fallback, category.description) ? (
+        <p className="-mt-4 text-sm text-navy/60">{text.fallback}</p>
+      ) : null}
       {category.children.length ? (
         <section className="space-y-3" aria-labelledby="subcategories-heading">
           <h2 id="subcategories-heading" className="text-xl font-semibold tracking-tight text-navy">
@@ -54,12 +55,12 @@ export async function CategoryView({
               <li key={child.slug}>
                 <Link
                   href={`/${locale}/categories/${category.slug}/${child.slug}`}
-                  className={`flex h-full flex-col border border-navy/10 bg-white p-4 shadow-sm hover:border-brand ${focusLight}`}
+                  className={`flex h-full items-center gap-3 border border-navy/10 bg-white p-4 shadow-sm hover:border-brand ${focusLight}`}
                 >
-                  <span className="font-semibold text-navy">{child.name}</span>
-                  <span className="mt-2 text-sm text-navy/70">
-                    {text.products}: {child.product_count}
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-mist text-brand">
+                    <CategoryOutlineIcon slug={child.slug} className="h-5 w-5" />
                   </span>
+                  <span className="min-w-0 font-semibold text-navy">{child.name}</span>
                 </Link>
               </li>
             ))}

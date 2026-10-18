@@ -106,11 +106,17 @@ def workbook_with_duplicate_model(path: Path) -> None:
     workbook.close()
 
 
-def single_hikvision_row(path: Path, *, model: str = "Hikvision NVR-1", price: int = 40) -> None:
+def single_hikvision_row(
+    path: Path,
+    *,
+    model: str = "Hikvision NVR-1",
+    price: int = 40,
+    description: str = "регистратор",
+) -> None:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "NVR"
     sheet.append(["№", "Фото", "Модель", "Характеристика", "Цена"])
-    sheet.append([1, None, model, "регистратор", price])
+    sheet.append([1, None, model, description, price])
     workbook.save(path)
     workbook.close()

@@ -1,12 +1,12 @@
 # Open questions
 
-Confirmed decisions are not listed here. In particular, the company name is HikVision, prices are USD, blank prices initialize to the public request-price state, discounts are not shown, the site is Russian, Uzbek, and English, stock is an out-of-stock badge set by staff, and the two workbooks import independently or together.
+Confirmed decisions are not listed here. In particular, the company name is HikVision, numeric prices are stored as USD and displayed as UZS from the source workbook, blank prices initialize to the public request-price state, the site is Russian, Uzbek, and English, stock is an out-of-stock badge set by staff, and the two workbooks import independently or together.
 
 ## Client decisions still open
 
 1. **Domain.** The client already owns a domain. The exact host was not provided. Canonicals, the sitemap, and HTTPS use `PUBLIC_SITE_URL` until it is supplied. No domain will be invented.
 2. **Contact details and social links.** Phone, email, address, opening hours, and social URLs are empty profile fields. The admin can save them. The public page shows only saved values. Organization address and telephone stay out of structured data until then.
-3. **Tax wording.** Numeric prices are stored and shown as the source USD amounts, with `$`, and without conversion. The client has not said whether the page should also say that tax is included or excluded. The amount itself does not change either way.
+3. **Tax wording.** Visitors see the calculated UZS amount. The client has not said whether the page should also say that tax is included or excluded. The stored USD amount and the display formula do not change either way.
 
 ## Technical decisions already made
 
@@ -27,4 +27,4 @@ These do not need a client answer unless they should change.
 
 ## Not questions
 
-The following are already specified in `docs/project-requirements.md`: company name, USD prices, EZVIZ `Цена для дилера` as the initial public price, no public discounts, request-price labels in three languages, separate records for repeated models, workbook images, three-language routes, out-of-stock display, and the two-workbook import with one apply step.
+The following are already specified in `docs/project-requirements.md`: company name, USD storage with workbook-based UZS display, EZVIZ `Цена для дилера` as the initial stored price, one public price without a discount badge, request-price labels in three languages, the browser product list, separate records for repeated models, workbook images, three-language routes, out-of-stock display, and the two-workbook import with one apply step.

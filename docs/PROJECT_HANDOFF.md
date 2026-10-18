@@ -32,8 +32,8 @@ Build a production informational catalog for the company **HikVision**. It is no
 
 ## Confirmed business rules
 
-- Numeric prices are USD, stored as decimals, shown with `$`. No conversion.
-- Show only the main price. Do not calculate or display discounts.
+- Numeric prices are stored as USD decimals. Visitors see one UZS amount: Hikvision workbook `stored_usd * 12000 * 0.8`, EZVIZ workbook `stored_usd * 12000 * 0.9`. The workbook’s `source_code` selects the formula, not the brand. HiLook sheets use the Hikvision formula. There is no live exchange rate. Half-up rounding to a whole soʻm does not change results for the current two-decimal USD amounts.
+- Show only that one price. Do not show the stored USD amount, the Hilook discount notes, or a discount badge.
 - Explicit `По запросу` is the request-price state. A blank price is not zero; its public status also starts as that request-price state. Provenance still records that the source cell was blank.
 - Public on-request labels, stored in `api/app/price_labels.py` rather than on product rows: Russian `По запросу`, Uzbek `So'rov asosida`, English `On request`.
 - EZVIZ public prices start from `Цена для дилера`. Hikvision public prices start from `Цена`. The dealer column name is internal and must not appear on the public site.
@@ -141,7 +141,7 @@ Tables added:
 
 - `import_jobs` — one review and one apply. A job may contain the Hikvision file, the EZVIZ file, or both. Unique `(job_id, source_code)` on `import_files` keeps the sources independent. A missing file is the absence of that source’s row, not a delete.
 - `import_files` — original filename, SHA-256, identification (`auto` or `admin_confirmed`), validation status, validation errors, stored object key, and `included_in_apply`. An invalid file must record at least one error and cannot be included in apply. A valid file may still be excluded.
-- `import_rows` — staged worksheet rows. Classification, action, resolution, raw cells, proposal, messages, matched product, and applied flag. Unique `(import_file_id, worksheet_name, source_row)`. Pending `conflict` and `possible_match` rows cannot be marked applied. `accept_excel` is the explicit approval to overwrite a manual value. `replace_prices` on the job defaults to false.
+- `import_rows` — staged worksheet rows. Classification, action, resolution, raw cells, proposal, messages, matched product, and applied flag. Unique `(import_file_id, worksheet_name, source_row)`. Pending `conflict` and `possible_match` rows cannot be marked applied. `accept_excel` on a row applies unlocked fields. A locked field changes only when that field’s own resolution is `accept_excel`. `replace_prices` on the job defaults to false.
 - `import_assets` — extracted images, including `unassigned` and `shared_candidate`.
 - `admin_audit_log` — `actor_id` is nullable so an unknown failed login can be recorded. Detail JSON cannot contain `password`, `password_hash`, `secret`, `session_token`, or `token` keys.
 
@@ -156,7 +156,7 @@ Not created in Phase 2B: `admin_sessions`, `slug_redirects`. No workbook parser,
 Verified by `api/app/auth/`, `api/app/cli/create_admin.py`, and Alembic revision `phase3_admin_sessions` in `api/alembic/versions/phase3_admin_sessions.py`. It revises `phase2b_import`. The Phase 2A and Phase 2B migration files were not rewritten.
 
 - `POST /api/auth/login` checks Argon2id, writes a generic failure, and on success sets cookies and returns `id`, `email`, `role`, and `csrf_token`.
-- `POST /api/auth/logout` revokes the session when the CSRF token and origin match, then clears the cookies. A missing session still clears cookies and returns 204.
+- `POST /api/auth/logout` revokes the session when the CSRF token and origin match, then clears both cookies on the response that is returned. A missing or expired session still clears the cookies and returns 204. A failed CSRF check returns 403 and leaves the session in place.
 - `GET /api/auth/me` returns `id`, `email`, and `role`, or 401.
 - `require_admin` is the backend dependency for later authenticated reads. `require_admin_write` is the dependency for later state-changing admin routes: it requires an active administrator, the CSRF token, and a matching origin. A non-admin role returns 403. The schema still allows only `admin`.
 - `admin_sessions` stores UUID `id`, `user_id` (`ON DELETE CASCADE`), HMAC digests `token_hash` and `csrf_token_hash`, `expires_at`, `revoked_at`, and `created_at`. Raw tokens are not stored.
@@ -191,14 +191,14 @@ Write routes use `require_admin_write`. Read routes use `require_admin`. Job res
 - `POST /api/admin/imports` accepts one or two `.xlsx` files, optional `source_overrides`, `replace_prices` (default false), and `publish_new_products` (default true). `IMPORT_MAX_BYTES` defaults to 41943040 and cannot be set above that ceiling. The minimum accepted setting is 1024. Uploads are streamed into `media/private-uploads/` under a random name, then staged. The temporary directory is removed after the request.
 - `GET /api/admin/imports/{job_id}` returns the combined preview summary and source-file validation.
 - `GET /api/admin/imports/{job_id}/rows` and `GET /api/admin/imports/{job_id}/assets` are paginated. `page_size` is at most 100.
-- `PATCH /api/admin/imports/{job_id}/rows/{row_id}` sets `keep_current`, `accept_excel`, `accept_new`, or `exclude` on a row that belongs to that job.
+- `PATCH /api/admin/imports/{job_id}/rows/{row_id}` sets `keep_current`, `accept_excel`, `accept_new`, or `exclude` on a row that belongs to that job. An optional `field` and `field_resolution` change one changed field and do not rewrite the others.
 - `POST /api/admin/imports/{job_id}/assets/{asset_id}/exclusion` records an asset id in the job summary. There is no excluded column on `import_assets`.
 - `POST /api/admin/imports/{job_id}/apply` with `{"confirm": true}` applies the job once.
 - `POST /api/admin/imports/{job_id}/reject` sets `rejected` from `preview` only.
 
 `preview` can become `applied`, `rejected`, or `failed`. A repeated apply of an `applied` job returns the stored result. A 409 for unresolved rows leaves the job in `preview`. An unexpected apply error rolls the catalog transaction back and then marks the job `failed`. This path does not persist `applying`, so there is no stuck-`applying` recovery step.
 
-A possible match stays `pending` and blocks apply. Its field differences and lock defaults are stored on the row. `accept_excel` is the explicit decision that overwrites locked fields on that row. A conflict cannot choose one Excel value. A row from another job is rejected. A missing workbook does not delete or flag the other source.
+A possible match stays `pending` and blocks apply. Its field differences and lock defaults are stored on the row. `accept_excel` on the row does not overwrite fields that are still `keep_current`. Overwriting one locked field requires `field` and `field_resolution` `accept_excel`. A conflict cannot choose one Excel value. A row from another job is rejected. A missing workbook does not delete or flag the other source.
 
 Apply locks the job row, writes only included valid rows, and commits the catalog changes with status `applied`, `approved_by`, and `applied_at` in one database transaction. New products start `in_stock`. `publish_new_products` chooses `published` or `draft` for new products only. Slugs are assigned once. USD amounts use two decimal places. Discount notes stay internal. Image rows point at checksum objects written during staging. A failed database transaction does not delete a checksum that another job or product might share. Nginx serves `/media/objects/` only.
 
@@ -230,7 +230,7 @@ Catalog routes, all under `/api/admin`:
 
 Products are archived, not hard-deleted. Brands and categories have no delete route. A manual product starts as `draft`, public price `on_request` with a null amount, and stock `in_stock`. A numeric price requires a non-negative USD amount with at most two decimal places. `on_request` rejects a supplied amount. Stock can change without changing the price. The first uploaded image is primary. Another image can be marked primary. Deleting an image removes the row and promotes another primary when needed; it does not delete the stored file. Supplied manual fields are locked. A later edit locks a field only when that field changes. Audit actions include `product_created`, `product_updated`, `product_price_changed`, `product_archived`, `image_added`, `image_updated`, `image_removed`, `brand_created`, `brand_updated`, `category_created`, `category_updated`, and `profile_updated`.
 
-`GET /api/admin/imports` lists recent jobs. Import row responses now include `current` when the row is matched to a product: display model, option, Russian brand and category names, Russian description, public price, and lock flags. Asset responses include `anchor_model` when a staged row shares the file, worksheet, and anchor row. The review screen shows the worksheet, classification, action, resolution, message codes, exclusion, and the incoming price, brand, category, and description. When `field_changes` is present it shows the current value, the incoming value, and the field resolution. A locked public price is called out with both amounts. Choosing `accept_excel` asks for confirmation and names the fields that are still `keep_current`. Conflicts can be kept or excluded; they cannot take `accept_excel`. Apply is offered only while the job is `preview`, and only after the confirmation checkbox. A failed apply, including HTTP 409, leaves the status unchanged. `replace_prices` stays an upload option and does not bypass the row rules.
+`GET /api/admin/imports` lists recent jobs. Import row responses now include `current` when the row is matched to a product: display model, option, Russian brand and category names, Russian description, public price, and lock flags. Asset responses include `anchor_model` when a staged row shares the file, worksheet, and anchor row. The review screen shows the worksheet, classification, action, resolution, message codes, exclusion, and the incoming price, brand, category, and description. When `field_changes` is present it shows the current value, the incoming value, and the field resolution. A locked public price is called out with both amounts. Choosing `accept_excel` asks for confirmation and names the fields that stay `keep_current`. Each of those fields has its own confirmation before it can be accepted. `brand_absent` and `manual_translations_stale` are explained in the review. Conflicts can be kept or excluded; they cannot take `accept_excel`. Apply is offered only while the job is `preview`, and only after the confirmation checkbox. A failed apply, including HTTP 409, leaves the status unchanged. `replace_prices` stays an upload option and does not bypass the row rules.
 
 The asset list requests `page` and `page_size` (the API maximum is 100; the screen uses 20) and shows link status, worksheet, anchor row, and anchor model. Only `linked_high` images that are not excluded are published by apply. Review, unassigned, and shared-candidate images stay staged.
 
@@ -436,6 +436,111 @@ Verified against the running Compose database. No catalog rows were changed for 
 - The other drafts are 13–17 (Seagate drives with empty Russian descriptions; 14 still has a desktop-drive photo the source does not name), 268 (Russian 25× optical zoom, English and Uzbek still say 15×, and the photo is shared with the published 15× model), 494 (`GDR-126035B` in the model and `GDR-126035BM` in the description), 528 (`гибкий переход`, still in unpublished category 38), and 533 (`2V 15A` in the model and 12V in the description).
 - A custom-format `pg_dump` of this database is stored outside the repository, next to a short restore note. Dumps, `.env`, PostgreSQL data, and `data/source/*.xlsx` are not committed.
 
+## Local catalog checkpoint — 17 October 2026
+
+The two test products were removed through the admin delete route. Immediately after that deletion, product 528 was still a draft and its category assignment was locked. No other product had been published or deleted yet. The approved publications later on 17 October are the bullets below. The Excel workbooks were not modified.
+
+- Products after the 17 October corrections: 639 published, 0 drafts, 0 archived. Products 13–17 and 528 were published with the approved descriptions. Category 38 `drugie-ustroystva` is published and contains only product 528.
+- The removed rows are product 1 `TEST-DO-NOT-SELL-001` and product 2 `ddmlwefwe`. Their earlier audit rows remain. New audit actions `product_deleted` are ids 1619 and 1620.
+- No drafts remain. Products 13–17 and 528 were published with the approved descriptions. Source cells are in `docs/unresolved-drafts.md`.
+- Product 528 `гибкий переход` is published. Category 38 `drugie-ustroystva` is published and contains only that product. The public price remains 1.50 USD. This replaces the earlier statement that the product was still a draft and the category was still unpublished. The 16 October checkpoint above remains the record of that earlier state. `docs/unresolved-drafts.md` and the catalog accuracy audit agree with this published state.
+- The running Compose API process was not rebuilt, so it does not yet serve the new delete route. The route is in the application code and was executed against this database from that code.
+
+## Public presentation — 18 October 2026
+
+The public pages now explain the catalog, label brand and category links, show the four video-history plans as services, and keep a browser-local selection. Details and the checks are in `docs/phase-2-completion-report.md`.
+
+- A selection is a list stored in the browser. It is not a cart, an order, or a payment. There is no send or share action.
+- Model codes are shown without a “Russian original” note. A Russian sentence used as a title still carries a short “In Russian” / “Rus tilida” / “На русском языке” label.
+- Seagate has five published products, so it stays in the public brand list. A published brand with no published products is omitted from discovery. Brand records are not deleted.
+- On 18 October the local Compose `web` and `api` images were rebuilt and those two containers were recreated. Postgres and nginx were not recreated. `camera-shop_postgres_data` and `camera-shop_catalog_media` stayed mounted. `http://127.0.0.1:8080` serves the new frontend and API. The earlier checks on port 3012 were against the dev server. The preview on port 3010 was not rebuilt and still returns 404 for `/ru/selection`.
+- After the rebuild, port 8080 served the three selection pages, add/view/remove for BNC, the BNC photo at 105×60, the CS-H1C photo scaled down from 3508×2480, product 56’s no-image placeholder in Russian, Uzbek, and English, and the monthly and yearly service plans. Published products remained 639. `GET /api/health` returned ok.
+- The final regression on port 8080 also confirmed the `IPC-B469HAD-LUF/SL` gallery switches images, and selection add, duplicate display, navigation, refresh, remove, and the empty state in Russian, Uzbek, and English. Typecheck passed. Frontend tests: 22 passed. Public catalog API tests: 7 passed on a disposable database that was removed. The core Phase 2 implementation and this local Docker verification are complete. Details are in `docs/phase-2-completion-report.md`.
+
+## Authentication verification — 18 October 2026
+
+Phase 3 authentication was already implemented. A logout response bug was corrected in source, and the local `api` image was then rebuilt. Only `camera-shop-api-1` was recreated. Postgres, nginx, and web were left running. `camera-shop_postgres_data` and `camera-shop_catalog_media` stayed mounted. No migration ran. The administrator account, catalog, import history, and audit log were not changed. Credentials were not reset.
+
+Checked on `http://127.0.0.1:8080` after that rebuild:
+
+- `GET /api/health` returned ok. Published products remain 639. One active administrator remains.
+- Anonymous `GET /api/auth/me` and `GET /api/admin/dashboard` return 401.
+- `POST /api/auth/logout` with no session cookie returns 204. That response deletes `hikvision_session` (`HttpOnly`, `Max-Age=0`, path `/api`) and `hikvision_csrf` (`Max-Age=0`, path `/`). The existing unexpired database session was not revoked by that anonymous request.
+
+Not checked on the running site, because no browser held the administrator session and the raw token is not stored:
+
+- Logout of that existing authorized session, including revocation and the browser being refused afterward.
+- A following login with the existing administrator account. The password was not read or reset.
+
+`tests/test_auth.py`: 18 passed again on a disposable Postgres container that was not attached to the Compose network. That container was removed. Those tests cover login, invalid credentials, logout with cookie deletion, unauthorized access, expiry, and CSRF. The Compose catalog was not used.
+
+Phase 3 is not marked complete until the authorized logout and a following login are observed on port 8080.
+
+## Preview failures — 18 October 2026
+
+The three reported pages fail on port 3010 and work on port 8080. This is not an API or catalog defect.
+
+Port 3010 is `npm run start` in `web/`, started with `API_INTERNAL_URL=http://127.0.0.1:8080`. Port 3012 is `next dev` in the same directory, so both use `.next`. The dev server replaced the production build. The preview still returns its old HTML, including `/uz/catalog`, `/uz/categories`, and `/admin/profile`. The hashed files that HTML requests, such as `/_next/static/chunks/webpack-a1f00b374570b680.js` and `/_next/static/css/efa22ffa85a43708.css`, return `400` with an empty Next error page. The browser then shows “Application error: a client-side exception has occurred”. The public API itself returns 200 for the product and category lists. The Uzbek error-boundary text `So'rov bajarilmadi` is not what these responses render.
+
+On `http://127.0.0.1:8080` the same routes load. `/uz/catalog` lists products, `/uz/categories` lists categories, and `/admin/profile` redirects to `/admin/login` without a client exception. Static assets on that site return 200. No service was rebuilt for this check.
+
+Do not run `next dev` and `next start` against one `.next` directory. Restoring the preview requires a production build while the dev server is not writing that directory, then a restart of port 3010 only.
+
+## Phase 4 audit — 18 October 2026
+
+The Excel import workflow was already implemented. The audit is recorded in `docs/phase-4-completion-report.md`.
+
+Two defects were fixed in source, without a migration and without applying a workbook to the live catalog:
+
+- Duplicate match keys in one file no longer make the existing product `absent_from_latest`.
+- A field override on an excluded row returns 409 and no longer restores that row.
+
+Isolated import tests: 50 passed before the rebuild, and the same 50 passed again afterward on a new disposable database (31 API and staging, 19 parser and schema). Frontend typecheck passed. Frontend library tests: 27 passed.
+
+The local `api` and `web` images were then rebuilt with `docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml up -d --no-deps --build api web`. Postgres container `747524f4819c` and nginx container `d2b45c32481e` were not recreated. The named data and media volumes were kept. Port 8080 health stayed ok and the public catalog stayed at 639 products. Anonymous import reads and writes returned 401. `/admin/imports` redirected to `/admin/login`. The new images contain the duplicate-match and excluded-row fixes, and the upload page still has separate Hikvision and EZVIZ inputs. No workbook was uploaded or applied. No administrator session was available, so the signed-in preview screen was not used.
+
+## Phase 5 audit — 18 October 2026
+
+The admin panel was already implemented. The audit is in `docs/phase-5-completion-report.md`. Two defects were fixed in source: the product editor can no longer save before the product loads, and an unchanged specification list is no longer deleted and recreated. Product and brand lists no longer show an empty state during the first load.
+
+The local `api` and `web` images were rebuilt with `docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml up -d --no-deps --build api web`. New containers: api `991c9d0c1b1b`, web `2f4463ac00e1`. Postgres `747524f4819c` and nginx `d2b45c32481e` were not recreated. Both named volumes stayed mounted.
+
+Nginx was still using the previous edge addresses, which the new containers had swapped, so port 8080 returned 502. `nginx -s reload` inside the existing nginx container resolved the new addresses. Nginx’s start time stayed 06:34 UTC. After that reload, health was ok, `/uz/categories` returned 200, and the public catalog stayed at 639 products.
+
+The API image contains the unchanged-specification comparison. The web image disables save until `canSaveLoadedProduct` allows it, and disables archive and delete until the product has loaded. Anonymous `/api/auth/me` and `/api/admin/products` returned 401. Anonymous logout returned 204 and left the three unexpired administrator sessions in place. The browser opened `/admin/products` and landed on `/admin/login`. No administrator session was available, so the product list, editor, unchanged save, and authorized logout were not used. Credentials were not read or reset. Phase 5 is not complete.
+
+`tests/test_catalog_admin.py`: 9 passed in 16.44s on disposable Postgres `cs-pytest-pg`, which was removed afterward. Frontend typecheck passed. Frontend library tests: 29 passed.
+
+## Phase 6 verification — 18 October 2026
+
+Requirements are in `docs/project-requirements.md`. Details and Docker evidence are in `docs/phase-6-completion-report.md`. Production blockers and the deploy runbook are in `docs/production-readiness-report.md`. No schema migration. No catalog row, import, or workbook was changed.
+
+`api/app/pricing.py` converts stored USD with Decimal: Hikvision × 9600, EZVIZ × 10800, half-up to a whole soʻm. `source_code` selects the formula. Missing provenance returns `unavailable`. The public router returns UZS, filters and sorts on displayed soʻm, and leaves stored USD untouched. The selection page sums numeric UZS rows and discloses excluded on-request and unavailable rows. Structured data uses `UZS`. There is no checkout.
+
+The local `api` and `web` images were rebuilt with `docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml up -d --no-deps --build api web`. New containers: api `3814f83ef46a`, web `546fb3d6c098`. Postgres `747524f4819c` and nginx `d2b45c32481e` were not recreated. Both named volumes stayed mounted. Nginx was reloaded so upstream addresses refreshed.
+
+Checked on `http://127.0.0.1:8080` after that rebuild:
+
+- `GET /api/health` returned ok. Published products remain 639 (555 hikvision, 84 ezviz provenance).
+- `product-12v-10a`: stored 4.00 USD → 38 400 UZS. HiLook `hilook-ipc-b469had-luf-sl`: stored 115.00 USD → 1 104 000 UZS. EZVIZ `ezviz-cs-c60p-3mp`: stored 50.00 USD → 540 000 UZS.
+- Soʻm price filters work. Product cards and detail pages show soʻm. Selection totals 1 158 000 сум for HiLook + EZVIZ monthly; adding WD on-request keeps that total and shows the exclusion disclosure. `/ru/checkout` and `/ru/cart` return 404.
+
+Isolated tests after the rebuild: `tests/test_pricing.py` plus `tests/test_public_catalog.py` — 13 passed on disposable Postgres that was removed. Frontend typecheck passed. Frontend library tests: 32 passed.
+
+Phase 6 is complete for the local Docker site.
+
+After that verification, the header selection control was changed from a text link to a red Lucide shopping-cart icon with a live count badge. It still opens `/{locale}/selection` only (`SelectionLink` shared in the site header for desktop and mobile).
+
+The first icon pass left an outdated `web` image on port 8080 (still showing text `Подборка`). On 18 October the `web` image was rebuilt and the container recreated (`29fce25c3083`); postgres, api, nginx, and volumes were preserved; nginx was reloaded. Port 8080 then served the red Lucide cart with live badge counts and localized `aria-label` values. Frontend selection tests: 6 passed. Typecheck passed.
+
+A later UI pass shared Lucide outline icons across product cards (selection cart accent `#FF414D`, muted model/brand/category/price marks), homepage category tiles, and subcategory links. Mapping uses the existing reliable `categoryMark` slug rules; ambiguous sections stay neutral. Selection and pricing behavior were unchanged. The `web` image was rebuilt again for that pass.
+
+Category directory bug (uneven stretched cards and nested series lists on `/uz/categories`) was a layout issue, not bad catalog data: a two-column CSS grid stretched short parents beside tall ones that recursively nested children. `CategoryIndex` now uses a compact three-column card grid with chip-style child links. Customer-facing “selection” labels were renamed to cart terminology (EN/RU/UZ); canonical URL is `/{locale}/cart`, with `/{locale}/selection` redirecting there. Persisted cart storage keys are unchanged.
+
 ## Next task
 
-Phase 8 — production deployment and hardening. Set `PUBLIC_SITE_URL` to the real HTTPS origin before launch, then confirm canonicals, hreflang, the sitemap, and one numeric product against that host. Do not invent a domain, phone, email, address, or social URL. Do not modify `data/source/`. Do not add a cart, checkout, payments, customer accounts, or orders. Ranking and webmaster-tool validation are not a substitute for deployment checks.
+Phase 8 — production deployment and hardening — is blocked on client and ops inputs recorded in `docs/production-readiness-report.md` and `docs/open-questions.md`. Supply the real HTTPS origin, then set `PUBLIC_SITE_URL` and `MEDIA_PUBLIC_BASE_URL`, add TLS/HSTS to nginx, use a non-placeholder `SESSION_SECRET`, schedule database and media backups, and restore once on the VPS before any public cutover. Do not invent a domain, phone, email, address, or social URL. Do not modify `data/source/`. Do not add checkout, payments, customer accounts, or orders. Do not expose the site beyond loopback until those inputs exist.
+
+Phase 5 is still open for signed-in checks. Sign in once with the existing administrator account on `http://127.0.0.1:8080/admin/login` when that check is wanted. Confirm the product editor loads before it can be saved, then log out and confirm `/api/auth/me` returns 401. Do not reset the password. Phase 3 authorized logout/login on port 8080 remains open for the same reason.
+
+Still deferred from Phase 2: a genuine photo for product 56, the rejected workbook drawings, and an optional send or share action for the selection.

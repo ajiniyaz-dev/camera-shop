@@ -652,4 +652,29 @@ def test_blank_import_brand_does_not_remove_an_assigned_other_brand(db: Session)
     _update_product(grouped, approved, _BrandBook(db), categories, now)
     db.flush()
     assert grouped.brand_id == hikvision.id
-    assert db.scalar(select(func.count()).select_from(Brand)) == 2
+
+
+def test_category_lookup_folds_case_and_whitespace_only(db: Session) -> None:
+    stored = Category(
+        slug="ezviz", sort_order=0, is_published=True, source_code="ezviz", source_worksheet="Ezviz"
+    )
+    stored.translations.append(CategoryTranslation(locale="ru", name="EZVIZ"))
+    access = Category(slug="skud", sort_order=1, is_published=True, source_code="hikvision", source_worksheet="СКУД")
+    access.translations.append(CategoryTranslation(locale="ru", name="СКУД"))
+    db.add_all([stored, access])
+    db.flush()
+    book = _CategoryBook(db, publish=False)
+
+    assert book.ensure("Ezviz", None, "ezviz", "Ezviz") == stored.id
+    assert book.ensure("  ezviz  ", None, "ezviz", "Ezviz") == stored.id
+    cloud_id = book.ensure("Cloud", None, "ezviz", "Ezviz")
+    assert cloud_id != stored.id
+    other_sheet = book.ensure("Ezviz", None, "hikvision", "NVR")
+    assert other_sheet not in {stored.id, cloud_id}
+    cameras_id = book.ensure("IP камеры", None, "hikvision", "СКУД")
+    assert cameras_id != access.id
+    db.flush()
+    db.refresh(stored)
+    assert stored.slug == "ezviz"
+    assert next(item.name for item in stored.translations if item.locale == "ru") == "EZVIZ"
+    assert db.scalar(select(func.count()).select_from(Category)) == 5

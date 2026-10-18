@@ -15,7 +15,7 @@ export class PublicCatalogError extends Error {
 }
 
 export type PublicPrice = {
-  status: "numeric" | "on_request" | "hidden";
+  status: "numeric" | "on_request" | "hidden" | "unavailable";
   amount: string | null;
   currency: string | null;
 };
@@ -50,6 +50,7 @@ export type PublicCategoryRef = {
 
 export type PublicCard = {
   slug: string;
+  product_kind?: "product" | "service";
   model_display: string;
   option_label: string | null;
   name: string;
