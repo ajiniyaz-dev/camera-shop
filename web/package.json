@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test src/lib/product-seo.test.ts"
+    "test:unit": "node --experimental-strip-types --test src/lib/product-seo.test.ts src/lib/home-landing.test.ts"
   },
   "dependencies": {
     "lucide-react": "^1.59.0",

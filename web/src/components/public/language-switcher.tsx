@@ -32,8 +32,8 @@ export function LanguageSwitcher({ locale }: { locale: PublicLocale }) {
             hrefLang={item}
             lang={item}
             aria-current={current ? "page" : undefined}
-            className={`inline-flex min-h-11 items-center justify-center px-3 ${focusDark} ${
-              current ? "bg-brand text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
+            className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3 transition-colors motion-reduce:transition-none ${focusDark} ${
+              current ? "bg-brand text-white shadow-sm shadow-brand/40" : "text-white/80 hover:bg-white/10 hover:text-white"
             }`}
           >
             {labels[item]}

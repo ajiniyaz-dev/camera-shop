@@ -1,3 +1,61 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+    /* Keep in-page anchors and #content skip targets clear of the sticky site header. */
+    scroll-padding-top: 7rem;
+  }
+
+  ::selection {
+    background-color: rgb(96 165 250 / 0.35);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium transition duration-200 ease-soft motion-reduce:transition-none;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand text-white shadow-sm shadow-brand/30 hover:brightness-110 hover:shadow-lift active:translate-y-px active:brightness-95 active:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply btn border border-brand/35 bg-white text-brand hover:border-brand hover:bg-sky/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply btn border border-white/50 bg-transparent text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+
+  .btn-on-dark {
+    @apply btn bg-white text-navy shadow-sm hover:bg-mist focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+
+  .btn-cart {
+    @apply btn border border-transparent bg-cart text-white shadow-cart hover:bg-cart-hover hover:shadow-md active:translate-y-px active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cart disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-cart-active {
+    @apply btn border border-line bg-mist text-ink hover:border-brand/40 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+  }
+
+  .btn-danger {
+    @apply btn border border-red-700/30 bg-white text-red-800 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700;
+  }
+
+  .surface-card {
+    @apply rounded-xl border border-line bg-white shadow-card;
+  }
+
+  .surface-panel {
+    @apply rounded-xl border border-line bg-white shadow-sm;
+  }
+
+  .accent-rail {
+    @apply h-1 w-8 rounded-full bg-teal;
+  }
+}

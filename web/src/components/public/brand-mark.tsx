@@ -1,12 +1,12 @@
 export const focusDark =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal";
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky";
 
 export const focusLight =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 export function BrandMark() {
   return (
-    <span aria-hidden="true" className="relative inline-block h-7 w-7 shrink-0 bg-brand">
+    <span aria-hidden="true" className="relative inline-block h-7 w-7 shrink-0 overflow-hidden rounded-md bg-brand shadow-sm shadow-brand/40">
       <span className="absolute bottom-0 right-0 h-2.5 w-2.5 bg-teal" />
     </span>
   );
@@ -15,7 +15,7 @@ export function BrandMark() {
 export function AccentBar() {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_4.5rem]" aria-hidden="true">
-      <div className="h-1 bg-brand" />
+      <div className="h-1 bg-gradient-to-r from-brand to-sky" />
       <div className="h-1 bg-teal" />
     </div>
   );

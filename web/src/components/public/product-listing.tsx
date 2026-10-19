@@ -8,7 +8,7 @@ import { messages, type PublicLocale } from "@/lib/public-i18n";
 
 const sorts = ["model", "name", "newest", "price_asc", "price_desc"] as const;
 const field =
-  "min-h-11 w-full border border-navy/15 bg-white px-3 text-navy focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
+  "min-h-11 w-full rounded-lg border border-line bg-white px-3 text-ink transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 type Locked = {
   category?: string;
@@ -75,14 +75,14 @@ export async function ProductListing({
   const currentPage = data.page;
   return (
     <div className="space-y-6">
-      <form action={pathname} method="get" className="space-y-4 rounded-md border border-navy/10 bg-white p-4 shadow-sm sm:p-5">
+      <form action={pathname} method="get" className="space-y-4 surface-panel p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-navy">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm font-medium text-ink">
             {text.search}
             <input name="q" type="search" maxLength={80} defaultValue={q ?? ""} className={field} />
           </label>
           <div className="flex gap-3">
-            <button type="submit" className={`inline-flex min-h-11 items-center justify-center bg-brand px-5 text-sm font-medium text-white hover:bg-navy ${focusLight}`}>
+            <button type="submit" className="btn-primary">
               {text.show}
             </button>
             <Link href={pathname} className={`inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline ${focusLight}`}>
@@ -90,13 +90,13 @@ export async function ProductListing({
             </Link>
           </div>
         </div>
-        <details className="border-t border-navy/10 pt-3 [&:not([open])>div]:hidden md:[&:not([open])>div]:grid">
+        <details className="border-t border-line pt-3 [&:not([open])>div]:hidden md:[&:not([open])>div]:grid">
           <summary className={`flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-brand md:hidden [&::-webkit-details-marker]:hidden ${focusLight}`}>
             {text.filters}
           </summary>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {locked?.brand ? null : (
-              <label className="flex flex-col gap-1 text-sm font-medium text-navy">
+              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
                 {text.brand}
                 <select name="brand" defaultValue={brand ?? ""} className={field}>
                   <option value="">{text.any}</option>
@@ -109,7 +109,7 @@ export async function ProductListing({
               </label>
             )}
             {locked?.category ? null : (
-              <label className="flex flex-col gap-1 text-sm font-medium text-navy">
+              <label className="flex flex-col gap-1 text-sm font-medium text-ink">
                 {text.category}
                 <select name="category" defaultValue={categoryValue(category, parent)} className={field}>
                   <option value="">{text.any}</option>
@@ -121,15 +121,15 @@ export async function ProductListing({
                 </select>
               </label>
             )}
-            <label className="flex flex-col gap-1 text-sm font-medium text-navy">
+            <label className="flex flex-col gap-1 text-sm font-medium text-ink">
               {text.minPrice}
               <input name="min_price" inputMode="decimal" defaultValue={minPrice ?? ""} className={field} />
             </label>
-            <label className="flex flex-col gap-1 text-sm font-medium text-navy">
+            <label className="flex flex-col gap-1 text-sm font-medium text-ink">
               {text.maxPrice}
               <input name="max_price" inputMode="decimal" defaultValue={maxPrice ?? ""} className={field} />
             </label>
-            <label className="flex flex-col gap-1 text-sm font-medium text-navy">
+            <label className="flex flex-col gap-1 text-sm font-medium text-ink">
               {text.sort}
               <select name="sort" defaultValue={sort} className={field}>
                 <option value="model">{text.sortModel}</option>
@@ -149,8 +149,8 @@ export async function ProductListing({
               <li key={item.slug}>
                 <Link
                   href={`/${locale}/brands/${item.slug}`}
-                  className={`inline-flex min-h-11 items-center border px-3 text-sm ${focusLight} ${
-                    brand === item.slug ? "border-brand bg-brand text-white" : "border-navy/15 bg-white text-navy hover:border-brand"
+                  className={`inline-flex min-h-11 items-center rounded-lg border px-3 text-sm transition ${focusLight} ${
+                    brand === item.slug ? "border-brand bg-brand text-white shadow-sm shadow-brand/25" : "border-line bg-white text-ink hover:border-brand"
                   }`}
                 >
                   {item.name}
@@ -162,7 +162,7 @@ export async function ProductListing({
       ) : null}
       <ActiveFilters locale={locale} pathname={pathname} query={linkQuery} data={data} />
       {suppress ? (
-        <p role="status" className="rounded-md border border-navy/10 bg-white px-5 py-6 text-sm text-navy/70">
+        <p role="status" className="surface-panel px-5 py-6 text-sm text-mute">
           {text.emptySearch}
         </p>
       ) : (
@@ -176,7 +176,7 @@ export async function ProductListing({
             lockedBrand: Boolean(locked?.brand),
             lockedCategory: Boolean(locked?.category),
           }) ? (
-            <p role="status" aria-live="polite" className="text-sm text-navy/70">
+            <p role="status" aria-live="polite" className="text-sm text-mute">
               {text.results}: {data.total}
             </p>
           ) : null}
@@ -189,8 +189,8 @@ export async function ProductListing({
               ))}
             </ul>
           ) : (
-            <div role="status" className="rounded-md border border-navy/10 bg-white px-5 py-6 shadow-sm sm:px-6">
-              <p className="font-semibold text-navy">{text.noProducts}</p>
+            <div role="status" className="surface-panel px-5 py-6 sm:px-6">
+              <p className="font-semibold text-ink">{text.noProducts}</p>
               <div className="mt-4 flex flex-wrap gap-4">
                 <Link href={pathname} className={`text-sm font-medium text-brand underline-offset-4 hover:underline ${focusLight}`}>
                   {text.reset}
@@ -211,9 +211,9 @@ export async function ProductListing({
                   {text.previous}
                 </Link>
               ) : (
-                <span className="inline-flex min-h-11 items-center text-sm text-navy/40">{text.previous}</span>
+                <span className="inline-flex min-h-11 items-center text-sm text-mute/60">{text.previous}</span>
               )}
-              <span className="text-sm text-navy">
+              <span className="text-sm text-ink">
                 {text.page} {currentPage} / {pageCount}
               </span>
               {currentPage < pageCount ? (
@@ -221,7 +221,7 @@ export async function ProductListing({
                   {text.next}
                 </Link>
               ) : (
-                <span className="inline-flex min-h-11 items-center text-sm text-navy/40">{text.next}</span>
+                <span className="inline-flex min-h-11 items-center text-sm text-mute/60">{text.next}</span>
               )}
             </nav>
           ) : null}
@@ -284,7 +284,7 @@ function ActiveFilters({
                 : value;
         return (
           <li key={key}>
-            <Link href={href(pathname, next, 1)} className={`inline-flex min-h-11 items-center border border-brand/30 bg-mist px-3 text-sm text-navy hover:border-brand ${focusLight}`}>
+            <Link href={href(pathname, next, 1)} className={`inline-flex min-h-11 items-center rounded-lg border border-brand/30 bg-mist px-3 text-sm text-ink hover:border-brand ${focusLight}`}>
               {labels[key] ?? key}: {shown}
             </Link>
           </li>

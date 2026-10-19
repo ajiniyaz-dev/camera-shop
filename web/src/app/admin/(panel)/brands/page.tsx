@@ -16,7 +16,7 @@ type Brand = {
   is_published: boolean;
 };
 
-const field = "mt-1 w-full rounded border border-neutral-300 px-3 py-2";
+const field = "mt-1 w-full rounded-lg border border-line px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 export default function BrandsPage() {
   const locale = useAdminLocale();
@@ -73,7 +73,7 @@ export default function BrandsPage() {
           {translate(locale, "name")}
           <input required value={name} onChange={(event) => setName(event.target.value)} className={field} />
         </label>
-        <button type="submit" className="rounded bg-neutral-900 px-3 py-2 text-sm text-white">
+        <button type="submit" className="btn-primary">
           {translate(locale, "save")}
         </button>
       </form>
@@ -82,7 +82,7 @@ export default function BrandsPage() {
       {listStatus(loading, failed, rows.length) === "empty" ? <p className="mt-6 text-sm">{translate(locale, "empty")}</p> : null}
       <ul className="mt-4 space-y-3">
         {rows.map((row) => (
-          <li key={row.id} className="rounded border border-neutral-200 bg-white p-3">
+          <li key={row.id} className="rounded border border-line bg-white p-3">
             <div className="grid gap-2 sm:grid-cols-3">
               <input aria-label="RU" value={row.name_ru ?? ""} onChange={(event) => setRows(update(rows, row.id, { name_ru: event.target.value }))} className={field} />
               <input aria-label="UZ" value={row.name_uz ?? ""} onChange={(event) => setRows(update(rows, row.id, { name_uz: event.target.value }))} className={field} />

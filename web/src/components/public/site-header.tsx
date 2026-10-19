@@ -17,10 +17,10 @@ export function SiteHeader({ locale, company }: { locale: PublicLocale; company:
     { href: `/${locale}/contact`, label: text.contact },
   ];
   return (
-    <header className="bg-navy text-white">
+    <header className="sticky top-0 z-50 bg-navy text-white shadow-sm">
       <a
         href="#content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-10 focus:bg-white focus:px-3 focus:py-2 focus:text-navy focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-brand"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-white focus:px-3 focus:py-2 focus:text-navy focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-brand"
       >
         {text.skip}
       </a>

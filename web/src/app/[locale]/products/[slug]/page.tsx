@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Breadcrumbs } from "@/components/public/breadcrumbs";
-import { focusLight } from "@/components/public/brand-mark";
 import { ModelMetaIcon } from "@/components/public/catalog-icons";
 import { CatalogLinks } from "@/components/public/catalog-links";
 import { JsonLd } from "@/components/public/json-ld";
@@ -62,11 +61,11 @@ export default async function ProductPage({
       <Breadcrumbs label={text.navigation} items={crumbs} />
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
         <ProductGallery images={product.images} emptyLabel={text.noImage} label={text.images} />
-        <section className="space-y-4 border border-navy/10 bg-white p-6 shadow-sm">
+        <section className="space-y-4 surface-card p-6">
           {isServicePlan(product) ? <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal">{text.service}</p> : null}
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-navy">{product.name}</h1>
-          {showOriginalNote(product.translation_fallback, product.name) ? <p className="text-sm text-navy/60">{text.fallback}</p> : null}
-          <p className="flex items-start gap-2 text-sm text-navy/80">
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-ink">{product.name}</h1>
+          {showOriginalNote(product.translation_fallback, product.name) ? <p className="text-sm text-mute">{text.fallback}</p> : null}
+          <p className="flex items-start gap-2 text-sm text-ink/80">
             <ModelMetaIcon />
             <span className="min-w-0">
               {text.model}: {product.model_display}
@@ -74,27 +73,21 @@ export default async function ProductPage({
             </span>
           </p>
           {period ? (
-            <p className="pl-[1.375rem] text-sm text-navy/80">
+            <p className="pl-[1.375rem] text-sm text-ink/80">
               {text.billing}: {period === "monthly" ? text.billingMonthly : text.billingYearly}
             </p>
           ) : null}
           <CatalogLinks locale={locale} brand={product.brand} category={product.category} />
-          <div className="border-t border-navy/10 pt-4">
+          <div className="border-t border-line pt-4">
             <PriceLabel price={product.price} locale={locale} />
           </div>
           {product.out_of_stock ? <p className="text-sm font-medium text-red-800">{text.outOfStock}</p> : null}
           <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap">
             <SelectionButton slug={product.slug} locale={locale} />
-            <Link
-              href={`/${locale}/contact`}
-              className={`inline-flex min-h-11 items-center justify-center bg-brand px-5 text-sm font-medium text-white hover:bg-navy ${focusLight}`}
-            >
+            <Link href={`/${locale}/contact`} className="btn-primary">
               {text.contact}
             </Link>
-            <Link
-              href={`/${locale}/catalog`}
-              className={`inline-flex min-h-11 items-center justify-center border border-brand px-5 text-sm font-medium text-brand hover:bg-mist ${focusLight}`}
-            >
+            <Link href={`/${locale}/catalog`} className="btn-secondary">
               {text.backToCatalog}
             </Link>
           </div>
@@ -102,24 +95,24 @@ export default async function ProductPage({
       </div>
       {product.description ? (
         <section className="max-w-3xl space-y-3">
-          <h2 className="text-xl font-semibold tracking-tight text-navy">{text.description}</h2>
-          {product.description_fallback ? <p className="text-sm text-navy/60">{text.fallback}</p> : null}
-          <p className="whitespace-pre-wrap leading-7 text-navy/80">{product.description}</p>
+          <h2 className="text-xl font-semibold tracking-tight text-ink">{text.description}</h2>
+          {product.description_fallback ? <p className="text-sm text-mute">{text.fallback}</p> : null}
+          <p className="whitespace-pre-wrap leading-7 text-ink/80">{product.description}</p>
         </section>
       ) : null}
       {product.specifications.length ? (
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold tracking-tight text-navy">{text.specifications}</h2>
-          <div className="overflow-x-auto border border-navy/10 bg-white">
+          <h2 className="text-xl font-semibold tracking-tight text-ink">{text.specifications}</h2>
+          <div className="overflow-x-auto rounded-xl border border-line bg-white shadow-sm">
             <table className="w-full min-w-[20rem] border-collapse text-left text-sm">
               <tbody>
                 {product.specifications.map((spec) => (
-                  <tr key={`${spec.name}-${spec.value}`} className="border-t border-navy/10">
-                    <th scope="row" className="w-2/5 bg-mist px-4 py-3 font-medium text-navy">
+                  <tr key={`${spec.name}-${spec.value}`} className="border-t border-line">
+                    <th scope="row" className="w-2/5 bg-mist px-4 py-3 font-medium text-ink">
                       {spec.name}
-                      {showOriginalNote(spec.translation_fallback, spec.name) ? <span className="mt-1 block text-xs font-normal text-navy/60">{text.fallback}</span> : null}
+                      {showOriginalNote(spec.translation_fallback, spec.name) ? <span className="mt-1 block text-xs font-normal text-mute">{text.fallback}</span> : null}
                     </th>
-                    <td className="px-4 py-3 text-navy/80">{spec.value}</td>
+                    <td className="px-4 py-3 text-ink/80">{spec.value}</td>
                   </tr>
                 ))}
               </tbody>

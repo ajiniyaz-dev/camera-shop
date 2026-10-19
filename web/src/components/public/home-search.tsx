@@ -168,19 +168,19 @@ export function HomeSearch({ locale }: { locale: PublicLocale }) {
               if (status !== "idle") setOpen(true);
             }}
             onKeyDown={onKeyDown}
-            className="min-h-11 w-full border border-white/15 bg-white px-3 text-navy placeholder:text-navy/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal"
+            className="min-h-11 w-full rounded-lg border border-white/20 bg-white px-3 text-ink shadow-sm placeholder:text-mute focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
           />
           {open ? (
             <div
               id={listId}
               role="listbox"
               aria-label={text.results}
-              className="absolute left-0 right-0 top-full z-30 mt-1 flex max-h-[min(18rem,calc(100dvh-12rem))] flex-col overflow-hidden rounded-md border border-navy/10 bg-white text-navy shadow-lg"
+              className="absolute left-0 right-0 top-full z-30 mt-1 flex max-h-[min(18rem,calc(100dvh-12rem))] flex-col overflow-hidden rounded-xl border border-line bg-white text-ink shadow-lift"
             >
               <div ref={optionsRef} className="min-h-0 overflow-y-auto">
-                {status === "loading" ? <p className="px-3 py-3 text-sm text-navy/70">{text.loading}</p> : null}
-                {status === "empty" ? <p className="px-3 py-3 text-sm text-navy/70">{text.noProducts}</p> : null}
-                {status === "error" ? <p className="px-3 py-3 text-sm text-navy/70">{text.error}</p> : null}
+                {status === "loading" ? <p className="px-3 py-3 text-sm text-mute">{text.loading}</p> : null}
+                {status === "empty" ? <p className="px-3 py-3 text-sm text-mute">{text.noProducts}</p> : null}
+                {status === "error" ? <p className="px-3 py-3 text-sm text-mute">{text.error}</p> : null}
                 {suggestions.map((product, index) => {
                   const meta = [product.brand?.name, product.category?.name].filter(Boolean).join(" · ");
                   const price = formatPublicPrice(
@@ -237,10 +237,7 @@ export function HomeSearch({ locale }: { locale: PublicLocale }) {
             </div>
           ) : null}
         </div>
-        <button
-          type="submit"
-          className="inline-flex min-h-11 items-center justify-center bg-teal px-5 text-sm font-medium text-navy hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
+        <button type="submit" className="btn-on-dark min-w-[6.5rem]">
           {text.search}
         </button>
       </div>

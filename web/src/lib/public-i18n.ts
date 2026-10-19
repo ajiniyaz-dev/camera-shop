@@ -85,6 +85,70 @@ const ru = {
   selectionError: "Часть корзины сейчас не загрузилась.",
   selectionTotal: "Итого",
   selectionTotalExcludes: "Сумма без товаров по запросу и без цены.",
+  landingLearnMore: "Подробнее",
+  landingBrowseSection: "Открыть раздел",
+  landingTechTitle: "Технологии Hikvision",
+  landingTechIntro:
+    "Краткий обзор технологий, которые встречаются в каталоге. Не каждая камера поддерживает каждую технологию — сверяйте модель и описание.",
+  landingTechColorVuTitle: "ColorVu",
+  landingTechColorVuBody:
+    "Цветное изображение при слабом освещении за счёт дополнительной подсветки. В каталоге есть отдельный раздел ColorVu.",
+  landingTechAcuSenseTitle: "AcuSense",
+  landingTechAcuSenseBody:
+    "Аналитика, которая помогает отличать людей и транспорт от ложных срабатываний. В каталоге доступны видеорегистраторы AcuSense.",
+  landingTechDarkFighterTitle: "DarkFighter",
+  landingTechDarkFighterBody:
+    "Линейка Hikvision для съёмки при очень низком освещении. Отдельного раздела DarkFighter в этом каталоге нет — сравнивайте модели в разделе IP-камер.",
+  landingTechHikConnectTitle: "Hik-Connect",
+  landingTechHikConnectBody:
+    "Приложение и облачная платформа Hikvision для удалённого просмотра совместимых устройств. Уточните поддержку для выбранных моделей через контакты.",
+  landingSolutionsTitle: "Решения по объектам",
+  landingSolutionsIntro:
+    "Ориентиры по разделам каталога для типичных сценариев. Это не готовые комплекты — состав системы зависит от объекта.",
+  landingSolutionHomeTitle: "Дом и двор",
+  landingSolutionHomeBody:
+    "Камеры для входа, двора и прилегающей территории. Начните с ColorVu, EZVIZ или IP-камер.",
+  landingSolutionRetailTitle: "Магазин или кафе",
+  landingSolutionRetailBody:
+    "Обзор торговой зоны, кассы и служебных помещений. Смотрите IP-камеры, СКУД и регистраторы.",
+  landingSolutionOfficeTitle: "Офис",
+  landingSolutionOfficeBody:
+    "Контроль входа, коридоров и рабочих зон. Подходят IP-камеры, NVR и системы контроля доступа.",
+  landingSolutionWarehouseTitle: "Склад и производство",
+  landingSolutionWarehouseBody:
+    "Большие площади и периметр. Рассмотрите PTZ, NVR и проектное оборудование.",
+  landingSystemTitle: "Из чего состоит система",
+  landingSystemIntro:
+    "Типичная система видеонаблюдения включает камеры, регистратор, накопители и сеть. Ниже — роли компонентов и ссылки на разделы каталога.",
+  landingSystemNote:
+    "Готовые комплекты с гарантированной совместимостью и ценой здесь не формируются — используйте разделы как ориентир при подготовке запроса.",
+  landingSystemCamerasTitle: "Камеры",
+  landingSystemCamerasBody:
+    "Снимают изображение. Выбор зависит от места установки, разрешения и условий освещения.",
+  landingSystemRecorderTitle: "Регистраторы NVR и DVR",
+  landingSystemRecorderBody:
+    "Записывают и хранят видео с камер, дают доступ к архиву и настройкам системы.",
+  landingSystemStorageTitle: "Жёсткие диски",
+  landingSystemStorageBody:
+    "Определяют, сколько дней записи можно сохранить на регистраторе.",
+  landingSystemNetworkTitle: "Сеть и кабели",
+  landingSystemNetworkBody:
+    "Коммутаторы, PoE и кабели связывают камеры с регистратором и питанием.",
+  landingStepsTitle: "Как выбрать систему",
+  landingStepsIntro: "Четыре шага, чтобы подготовить запрос по каталогу.",
+  landingStep1Title: "Определите объект и задачи",
+  landingStep1Body: "Где нужны камеры, какие зоны важны днём и ночью, нужен ли доступ с телефона.",
+  landingStep2Title: "Выберите тип камер",
+  landingStep2Body: "Форм-фактор, разрешение и сценарий ночной съёмки — сравните разделы IP, ColorVu и Turbo HD.",
+  landingStep3Title: "Подберите регистратор и сеть",
+  landingStep3Body: "Число каналов, объём HDD, PoE-коммутаторы и кабели под вашу схему.",
+  landingStep4Title: "Соберите запрос",
+  landingStep4Body: "Добавьте товары в корзину и отправьте список через контакты для уточнения.",
+  landingConsultTitle: "Свяжитесь с нами",
+  landingConsultIntro:
+    "Нужна помощь с подбором по каталогу? Используйте проверенные контакты компании или страницу связи.",
+  landingConsultCta: "Перейти к контактам",
+  landingOpenCart: "Открыть корзину",
 };
 
 const uz: { [Key in keyof typeof ru]: string } = {
@@ -171,6 +235,70 @@ const uz: { [Key in keyof typeof ru]: string } = {
   selectionError: "Savatning bir qismi hozir yuklanmadi.",
   selectionTotal: "Jami",
   selectionTotalExcludes: "Jami so'rov asosidagi va narxsiz mahsulotlarsiz.",
+  landingLearnMore: "Batafsil",
+  landingBrowseSection: "Bo'limni ochish",
+  landingTechTitle: "Hikvision texnologiyalari",
+  landingTechIntro:
+    "Katalogda uchraydigan texnologiyalar haqida qisqa ma'lumot. Har bir kamera har bir texnologiyani qo'llab-quvvatlamaydi — model va tavsifni tekshiring.",
+  landingTechColorVuTitle: "ColorVu",
+  landingTechColorVuBody:
+    "Qo'shimcha yoritish yordamida past yorug'likda rangli tasvir. Katalogda alohida ColorVu bo'limi bor.",
+  landingTechAcuSenseTitle: "AcuSense",
+  landingTechAcuSenseBody:
+    "Odam va transportni soxta signallardan ajratishga yordam beruvchi tahlil. Katalogda AcuSense videoregistratorlari mavjud.",
+  landingTechDarkFighterTitle: "DarkFighter",
+  landingTechDarkFighterBody:
+    "Juda past yorug'likda suratga olish uchun Hikvision liniyasi. Bu katalogda alohida DarkFighter bo'limi yo'q — IP-kameralar bo'limida modellarni solishtiring.",
+  landingTechHikConnectTitle: "Hik-Connect",
+  landingTechHikConnectBody:
+    "Mos qurilmalarni masofadan ko'rish uchun Hikvision ilovasi va bulut platformasi. Tanlangan modellar uchun qo'llab-quvvatlashni aloqa orqali aniqlang.",
+  landingSolutionsTitle: "Ob'ekt bo'yicha yechimlar",
+  landingSolutionsIntro:
+    "Odatiy holatlar uchun katalog bo'limlariga yo'naltiruvchi. Bu tayyor komplektlar emas — tizim tarkibi ob'ektga bog'liq.",
+  landingSolutionHomeTitle: "Uy va hovli",
+  landingSolutionHomeBody:
+    "Kirish, hovli va atrof uchun kameralar. ColorVu, EZVIZ yoki IP-kameralardan boshlang.",
+  landingSolutionRetailTitle: "Do'kon yoki kafe",
+  landingSolutionRetailBody:
+    "Savdo zonasi, kassa va xizmat xonalari. IP-kameralar, SKUD va registratorlarga qarang.",
+  landingSolutionOfficeTitle: "Ofis",
+  landingSolutionOfficeBody:
+    "Kirish, koridor va ish zonalarini nazorat. IP-kameralar, NVR va kirishni boshqarish tizimlari mos keladi.",
+  landingSolutionWarehouseTitle: "Ombor va ishlab chiqarish",
+  landingSolutionWarehouseBody:
+    "Katta maydonlar va perimetr. PTZ, NVR va loyiha uskunalarini ko'rib chiqing.",
+  landingSystemTitle: "Tizim nimalardan iborat",
+  landingSystemIntro:
+    "Odatiy videokuzatuv tizimi kameralar, registrator, disklar va tarmoqni o'z ichiga oladi. Quyida komponentlar roli va katalog bo'limlariga havolalar.",
+  landingSystemNote:
+    "Kafolatlangan moslik va narxli tayyor komplektlar shu yerda shakllantirilmaydi — so'rov tayyorlashda bo'limlardan yo'riqnoma sifatida foydalaning.",
+  landingSystemCamerasTitle: "Kameralar",
+  landingSystemCamerasBody:
+    "Tasvirni oladi. Tanlov o'rnatish joyi, aniqlik va yorug'lik sharoitiga bog'liq.",
+  landingSystemRecorderTitle: "NVR va DVR registratorlar",
+  landingSystemRecorderBody:
+    "Kameralardan videoni yozadi va saqlaydi, arxiv va sozlamalarga kirish beradi.",
+  landingSystemStorageTitle: "Qattiq disklar",
+  landingSystemStorageBody:
+    "Registratorda necha kunlik yozuv saqlanishini belgilaydi.",
+  landingSystemNetworkTitle: "Tarmoq va kabellar",
+  landingSystemNetworkBody:
+    "Kommutatorlar, PoE va kabellar kameralarni registrator va quvvat bilan bog'laydi.",
+  landingStepsTitle: "Tizimni qanday tanlash",
+  landingStepsIntro: "Katalog bo'yicha so'rov tayyorlash uchun to'rt qadam.",
+  landingStep1Title: "Ob'ekt va vazifalarni aniqlang",
+  landingStep1Body: "Kameralar qayerda kerak, qaysi zonalar muhim, telefonda ko'rish kerakmi.",
+  landingStep2Title: "Kamera turini tanlang",
+  landingStep2Body: "Shakl, aniqlik va tungi suratga olish — IP, ColorVu va Turbo HD bo'limlarini solishtiring.",
+  landingStep3Title: "Registrator va tarmoqni tanlang",
+  landingStep3Body: "Kanallar soni, HDD hajmi, PoE kommutatorlar va kabellar sxemangizga mos.",
+  landingStep4Title: "So'rovni yig'ing",
+  landingStep4Body: "Mahsulotlarni savatga qo'shing va aniqlash uchun aloqa orqali yuboring.",
+  landingConsultTitle: "Biz bilan bog'laning",
+  landingConsultIntro:
+    "Katalogdan tanlashda yordam kerakmi? Kompaniyaning tasdiqlangan kontaktlari yoki aloqa sahifasidan foydalaning.",
+  landingConsultCta: "Aloqaga o'tish",
+  landingOpenCart: "Savatni ochish",
 };
 
 const en: { [Key in keyof typeof ru]: string } = {
@@ -257,6 +385,70 @@ const en: { [Key in keyof typeof ru]: string } = {
   selectionError: "Part of the cart could not be loaded.",
   selectionTotal: "Total",
   selectionTotalExcludes: "The total excludes on-request and unavailable prices.",
+  landingLearnMore: "Learn more",
+  landingBrowseSection: "Open section",
+  landingTechTitle: "Hikvision technologies",
+  landingTechIntro:
+    "A short overview of technologies that appear in this catalog. Not every camera supports every technology — check the model and description.",
+  landingTechColorVuTitle: "ColorVu",
+  landingTechColorVuBody:
+    "Full-color video in low light with supplemental illumination. This catalog includes a dedicated ColorVu section.",
+  landingTechAcuSenseTitle: "AcuSense",
+  landingTechAcuSenseBody:
+    "Analytics that help distinguish people and vehicles from false alarms. AcuSense video recorders are available in the catalog.",
+  landingTechDarkFighterTitle: "DarkFighter",
+  landingTechDarkFighterBody:
+    "A Hikvision line for clearer images in very low light. This catalog has no separate DarkFighter section — compare models under IP cameras.",
+  landingTechHikConnectTitle: "Hik-Connect",
+  landingTechHikConnectBody:
+    "Hikvision’s app and cloud platform for remote viewing of compatible devices. Confirm support for your shortlisted models via contact.",
+  landingSolutionsTitle: "Solutions by location",
+  landingSolutionsIntro:
+    "Catalog starting points for common sites. These are not ready-made kits — system composition depends on the property.",
+  landingSolutionHomeTitle: "Home and yard",
+  landingSolutionHomeBody:
+    "Cameras for entrances, yards, and surroundings. Start with ColorVu, EZVIZ, or IP cameras.",
+  landingSolutionRetailTitle: "Shop or café",
+  landingSolutionRetailBody:
+    "Coverage for sales floors, tills, and staff areas. Browse IP cameras, access control, and recorders.",
+  landingSolutionOfficeTitle: "Office",
+  landingSolutionOfficeBody:
+    "Entrances, corridors, and work areas. IP cameras, NVRs, and access control sections are relevant.",
+  landingSolutionWarehouseTitle: "Warehouse or industrial",
+  landingSolutionWarehouseBody:
+    "Large areas and perimeter views. Consider PTZ, NVR, and project equipment.",
+  landingSystemTitle: "What makes up a system",
+  landingSystemIntro:
+    "A typical surveillance system includes cameras, a recorder, storage, and networking. Below are component roles and links to catalog sections.",
+  landingSystemNote:
+    "Complete kits with verified compatibility and prices are not assembled here — use the sections as guidance when preparing an inquiry.",
+  landingSystemCamerasTitle: "Cameras",
+  landingSystemCamerasBody:
+    "Capture the image. Choice depends on mounting location, resolution, and lighting conditions.",
+  landingSystemRecorderTitle: "NVR and DVR recorders",
+  landingSystemRecorderBody:
+    "Record and store camera video and provide access to archives and system settings.",
+  landingSystemStorageTitle: "Hard drives",
+  landingSystemStorageBody:
+    "Determine how many days of recording the recorder can retain.",
+  landingSystemNetworkTitle: "Network and cables",
+  landingSystemNetworkBody:
+    "Switches, PoE, and cables connect cameras to the recorder and power.",
+  landingStepsTitle: "How to choose a system",
+  landingStepsIntro: "Four steps to prepare a catalog inquiry.",
+  landingStep1Title: "Define the site and needs",
+  landingStep1Body: "Where cameras are needed, which zones matter day and night, and whether phone access is required.",
+  landingStep2Title: "Choose camera types",
+  landingStep2Body: "Form factor, image quality, and night conditions — compare IP, ColorVu, and Turbo HD sections.",
+  landingStep3Title: "Select recorder and network",
+  landingStep3Body: "Channel count, HDD capacity, PoE switches, and cables for your layout.",
+  landingStep4Title: "Prepare your inquiry",
+  landingStep4Body: "Add products to the cart and share the list via contact for clarification.",
+  landingConsultTitle: "Get in touch",
+  landingConsultIntro:
+    "Need help choosing from the catalog? Use the company’s verified contact details or the contact page.",
+  landingConsultCta: "Go to contact",
+  landingOpenCart: "Open cart",
 };
 
 export const messages = { ru, uz, en };

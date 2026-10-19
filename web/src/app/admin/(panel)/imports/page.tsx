@@ -154,7 +154,7 @@ export default function ImportsPage() {
         onSubmit={upload}
         aria-busy={pending}
         aria-describedby={phase === "idle" ? undefined : "import-preview-status"}
-        className="mt-4 space-y-3 rounded border border-neutral-200 bg-white p-4"
+        className="mt-4 space-y-3 rounded border border-line bg-white p-4"
       >
         <h2 className="font-medium">{translate(locale, "uploadWorkbooks")}</h2>
         <label className="block text-sm">
@@ -191,7 +191,7 @@ export default function ImportsPage() {
             <option value="ezviz">EZVIZ</option>
           </select>
         </label>
-        <p className="text-sm text-neutral-600">{translate(locale, "sourceOverrideHint")}</p>
+        <p className="text-sm text-mute">{translate(locale, "sourceOverrideHint")}</p>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -261,14 +261,14 @@ export default function ImportsPage() {
         <button
           type="submit"
           disabled={pending}
-          className="inline-flex items-center gap-2 rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-70"
+          className="btn-primary disabled:opacity-70"
         >
           {pending ? <Spinner /> : null}
           {pending ? translate(locale, "generatingPreview") : translate(locale, "preview")}
         </button>
       </form>
       {jobs.length === 0 ? <p className="mt-6 text-sm">{translate(locale, "noJobs")}</p> : null}
-      <ul className="mt-4 divide-y rounded border border-neutral-200 bg-white">
+      <ul className="mt-4 divide-y rounded border border-line bg-white">
         {jobs.map((job) => (
           <li key={job.id} className="flex items-center justify-between px-3 py-2 text-sm">
             <span>#{job.id}</span>

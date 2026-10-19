@@ -55,30 +55,35 @@ export function AdminShell({ locale, children }: { locale: Locale; children: Rea
   }
 
   if (!ready) {
-    return <p className="p-6 text-sm text-neutral-600">{translate(locale, "loading")}</p>;
+    return <p className="p-6 text-sm text-mute">{translate(locale, "loading")}</p>;
   }
 
   return (
     <LocaleContext.Provider value={locale}>
-    <div className="min-h-screen bg-neutral-50 text-neutral-950">
-      <header className="border-b border-neutral-200 bg-white">
+    <div className="min-h-screen bg-mist text-ink">
+      <header className="sticky top-0 z-50 border-b border-line bg-navy text-white shadow-sm">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
-          <p className="mr-2 text-sm font-semibold">{translate(locale, "appTitle")}</p>
-          <nav className="flex flex-1 flex-wrap gap-2" aria-label={translate(locale, "appTitle")}>
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={pathname === link.href ? "page" : undefined}
-                className={`rounded px-2 py-1 text-sm ${pathname === link.href ? "bg-neutral-900 text-white" : "hover:bg-neutral-100"}`}
-              >
-                {translate(locale, link.key)}
-              </Link>
-            ))}
+          <p className="mr-2 text-sm font-semibold tracking-wide">{translate(locale, "appTitle")}</p>
+          <nav className="flex flex-1 flex-wrap gap-1" aria-label={translate(locale, "appTitle")}>
+            {links.map((link) => {
+              const current = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={current ? "page" : undefined}
+                  className={`rounded-lg px-2.5 py-1.5 text-sm transition-colors motion-reduce:transition-none ${
+                    current ? "bg-brand text-white shadow-sm shadow-brand/40" : "text-white/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {translate(locale, link.key)}
+                </Link>
+              );
+            })}
           </nav>
-          <LanguageSwitcher locale={locale} />
-          <span className="text-xs text-neutral-500">{email}</span>
-          <button type="button" onClick={logout} className="rounded border border-neutral-300 px-2 py-1 text-sm">
+          <LanguageSwitcher locale={locale} tone="dark" />
+          <span className="text-xs text-white/60">{email}</span>
+          <button type="button" onClick={logout} className="rounded-lg border border-white/25 px-2.5 py-1.5 text-sm text-white/90 transition hover:bg-white/10">
             {translate(locale, "logout")}
           </button>
         </div>

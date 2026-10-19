@@ -16,6 +16,7 @@ export function SiteFooter({ locale, company }: { locale: PublicLocale; company:
     { href: `/${locale}`, label: text.home },
     { href: `/${locale}/catalog`, label: text.catalog },
     { href: `/${locale}/categories`, label: text.categories },
+    { href: `/${locale}/cart`, label: text.selection },
     { href: `/${locale}/contact`, label: text.contact },
   ];
   return (

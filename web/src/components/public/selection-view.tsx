@@ -88,32 +88,32 @@ export function SelectionView({ locale }: { locale: PublicLocale }) {
           <ul className="space-y-3">
             {rows.map((row) =>
               row.state === "error" ? (
-                <li key={row.slug} className="flex flex-col gap-3 rounded-md border border-navy/10 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-navy/70">{row.slug}</p>
-                  <button type="button" onClick={() => remove(row.slug)} className={`inline-flex min-h-11 items-center text-sm font-medium text-brand ${focusLight}`}>
+                <li key={row.slug} className="flex flex-col gap-3 surface-card p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-mute">{row.slug}</p>
+                  <button type="button" onClick={() => remove(row.slug)} className="btn-danger">
                     {text.removeFromSelection}
                   </button>
                 </li>
               ) : (
-                <li key={row.slug} className="rounded-md border border-navy/10 bg-white p-4 shadow-sm sm:p-5">
+                <li key={row.slug} className="surface-card p-4 sm:p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 space-y-1">
                       {isServicePlan(row.product) ? <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal">{text.service}</p> : null}
-                      <h2 className="text-lg font-semibold leading-snug text-navy">
+                      <h2 className="text-lg font-semibold leading-snug text-ink">
                         <Link href={`/${locale}/products/${row.product.slug}`} className={`underline-offset-4 hover:text-brand hover:underline ${focusLight}`}>
                           {row.product.name}
                         </Link>
                       </h2>
                       {showOriginalNote(row.product.translation_fallback, row.product.name) ? (
-                        <p className="text-sm text-navy/60">{text.fallback}</p>
+                        <p className="text-sm text-mute">{text.fallback}</p>
                       ) : null}
-                      <p className="text-sm text-navy/70">
+                      <p className="text-sm text-mute">
                         {text.model}: {row.product.model_display}
                       </p>
                       <BillingLine option={row.product.option_label} locale={locale} />
                       <PriceLabel price={row.product.price} locale={locale} />
                     </div>
-                    <button type="button" onClick={() => remove(row.slug)} className={`inline-flex min-h-11 shrink-0 items-center justify-center border border-navy/20 px-4 text-sm font-medium text-navy hover:border-brand ${focusLight}`}>
+                    <button type="button" onClick={() => remove(row.slug)} className="btn-danger shrink-0">
                       {text.removeFromSelection}
                     </button>
                   </div>
@@ -122,22 +122,22 @@ export function SelectionView({ locale }: { locale: PublicLocale }) {
             )}
           </ul>
           {total.total ? (
-            <div className="rounded-md border border-navy/10 bg-white px-5 py-4 shadow-sm">
-              <p className="text-lg font-semibold text-navy">
+            <div className="surface-card px-5 py-4">
+              <p className="text-lg font-semibold text-ink">
                 {text.selectionTotal}: {formatUzsAmount(total.total, locale)}
               </p>
-              {total.excluded ? <p className="mt-2 text-sm text-navy/70">{text.selectionTotalExcludes}</p> : null}
+              {total.excluded ? <p className="mt-2 text-sm text-mute">{text.selectionTotalExcludes}</p> : null}
             </div>
           ) : total.excluded ? (
-            <p role="status" className="text-sm text-navy/70">
+            <p role="status" className="text-sm text-mute">
               {text.selectionTotalExcludes}
             </p>
           ) : null}
         </>
       ) : (
-        <div role="status" className="rounded-md border border-navy/10 bg-white px-5 py-6 shadow-sm">
-          <p className="font-semibold text-navy">{text.selectionEmpty}</p>
-          <Link href={`/${locale}/catalog`} className={`mt-4 inline-flex min-h-11 items-center text-sm font-medium text-brand underline-offset-4 hover:underline ${focusLight}`}>
+        <div role="status" className="surface-card px-5 py-6">
+          <p className="font-semibold text-ink">{text.selectionEmpty}</p>
+          <Link href={`/${locale}/catalog`} className="btn-primary mt-4">
             {text.browseCatalog}
           </Link>
         </div>

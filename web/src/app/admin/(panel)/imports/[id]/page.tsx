@@ -328,7 +328,7 @@ export default function ImportDetailPage() {
             setAction(event.target.value);
             setPage(1);
           }}
-          className="ml-2 rounded border border-neutral-300 px-2 py-1"
+          className="ml-2 rounded border border-line px-2 py-1"
         >
           <option value="">{translate(locale, "all")}</option>
           <option value="conflict">conflict</option>
@@ -339,7 +339,7 @@ export default function ImportDetailPage() {
       </label>
       {loading ? <p className="mt-3 text-sm">{translate(locale, "loading")}</p> : null}
       {rows.length === 0 ? <p className="mt-3 text-sm">{translate(locale, "empty")}</p> : null}
-      <ul className="mt-2 divide-y rounded border border-neutral-200 bg-white">
+      <ul className="mt-2 divide-y rounded border border-line bg-white">
         {rows.map((row) => {
           const proposal = row.proposal;
           const changes = proposal?.field_changes ?? [];
@@ -357,7 +357,7 @@ export default function ImportDetailPage() {
                 </p>
                 {row.action === "exclude" ? <p>{translate(locale, "excludedRow")}</p> : null}
                 {row.resolution === "pending" ? <p>{translate(locale, "pendingReview")}</p> : null}
-                <p className="text-neutral-600">{row.messages.map((item) => item.code).filter(Boolean).join(", ")}</p>
+                <p className="text-mute">{row.messages.map((item) => item.code).filter(Boolean).join(", ")}</p>
                 {row.messages.some((item) => item.code === "brand_absent") ? <p>{translate(locale, "brandAbsent")}</p> : null}
                 {row.messages.some((item) => item.code === "manual_translations_stale") ? <p>{translate(locale, "staleTranslations")}</p> : null}
                 {proposal && (row.classification === "product" || row.classification === "service") ? (
@@ -416,11 +416,11 @@ export default function ImportDetailPage() {
         <button type="button" disabled={page * 20 >= total} onClick={() => setPage(page + 1)} className="rounded border px-2 py-1 disabled:opacity-40">{translate(locale, "next")}</button>
       </div>
       <h2 className="mt-6 font-medium">{translate(locale, "assets")}</h2>
-      <p className="mt-1 text-sm text-neutral-600">{translate(locale, "assetHint")}</p>
+      <p className="mt-1 text-sm text-mute">{translate(locale, "assetHint")}</p>
       {assets.length === 0 ? <p className="mt-2 text-sm">{translate(locale, "noAssets")}</p> : null}
       <ul className="mt-2 text-sm">
         {assets.map((asset) => (
-          <li key={asset.id} className="flex flex-wrap items-center gap-3 border-b border-neutral-200 py-2">
+          <li key={asset.id} className="flex flex-wrap items-center gap-3 border-b border-line py-2">
             <span>{asset.link_status}</span>
             <span>{asset.worksheet} #{asset.anchor_row}</span>
             <span>{textValue(asset.anchor_model, emptyLabel)}</span>
@@ -445,10 +445,10 @@ export default function ImportDetailPage() {
             {translate(locale, "confirmApply")}
           </label>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={!confirm} onClick={apply} className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-40">
+            <button type="button" disabled={!confirm} onClick={apply} className="btn-primary disabled:opacity-40">
               {translate(locale, "apply")}
             </button>
-            <button type="button" onClick={reject} className="rounded border border-neutral-300 px-4 py-2 text-sm">
+            <button type="button" onClick={reject} className="btn-danger">
               {translate(locale, "reject")}
             </button>
           </div>

@@ -49,7 +49,8 @@ type Product = {
   } | null;
 };
 
-const field = "mt-1 w-full rounded border border-neutral-300 px-3 py-2";
+const field =
+  "mt-1 w-full rounded-lg border border-line px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 export function ProductEditor({ productId }: { productId?: number }) {
   const locale = useAdminLocale();
@@ -302,7 +303,7 @@ export function ProductEditor({ productId }: { productId?: number }) {
             </select>
           </label>
         </div>
-        <fieldset className="rounded border border-neutral-200 p-3">
+        <fieldset className="rounded-xl border border-line p-3">
           <legend className="px-1 text-sm font-medium">{translate(locale, "price")}</legend>
           <p className="text-sm text-neutral-600">{translate(locale, "noDiscount")}</p>
           <p className="text-sm text-neutral-600">{translate(locale, "blankPrice")}</p>
@@ -329,7 +330,7 @@ export function ProductEditor({ productId }: { productId?: number }) {
           </div>
         </fieldset>
         {(["ru", "uz", "en"] as const).map((code) => (
-          <fieldset key={code} className="rounded border border-neutral-200 p-3">
+          <fieldset key={code} className="rounded-xl border border-line p-3">
             <legend className="px-1 text-sm font-medium">{code.toUpperCase()}</legend>
             <label className="block text-sm">
               {translate(locale, "name")}
@@ -341,7 +342,7 @@ export function ProductEditor({ productId }: { productId?: number }) {
             </label>
           </fieldset>
         ))}
-        <fieldset className="rounded border border-neutral-200 p-3">
+        <fieldset className="rounded-xl border border-line p-3">
           <legend className="px-1 text-sm font-medium">{translate(locale, "specifications")}</legend>
           {specs.map((spec, index) => (
             <div key={index} className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -373,23 +374,23 @@ export function ProductEditor({ productId }: { productId?: number }) {
         ) : null}
         {saved ? <p className="text-sm text-green-800">{translate(locale, "saved")}</p> : null}
         <div className="flex flex-wrap gap-2">
-          <button type="submit" disabled={!canSaveLoadedProduct(productId, loaded)} className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-40">
+          <button type="submit" disabled={!canSaveLoadedProduct(productId, loaded)} className="btn-primary disabled:opacity-40">
             {translate(locale, "save")}
           </button>
           {productId !== undefined ? (
-            <button type="button" onClick={archive} disabled={!loaded} className="rounded border border-neutral-300 px-4 py-2 text-sm disabled:opacity-40">
+            <button type="button" onClick={archive} disabled={!loaded} className="btn-secondary disabled:opacity-40">
               {translate(locale, "archive")}
             </button>
           ) : null}
           {productId !== undefined ? (
-            <button type="button" onClick={removeProduct} disabled={!loaded} className="rounded border border-red-300 px-4 py-2 text-sm text-red-800 disabled:opacity-40">
+            <button type="button" onClick={removeProduct} disabled={!loaded} className="btn-danger disabled:opacity-40">
               {translate(locale, "deleteProduct")}
             </button>
           ) : null}
         </div>
       </form>
       {source ? (
-        <aside className="mt-6 rounded border border-neutral-200 bg-white p-3 text-sm">
+        <aside className="mt-6 rounded-xl border border-line bg-white p-3 text-sm shadow-sm">
           <h2 className="font-medium">{translate(locale, "provenance")}</h2>
           <p>
             {source.source_code} / {source.source_worksheet} / {source.source_row}
@@ -410,7 +411,7 @@ export function ProductEditor({ productId }: { productId?: number }) {
           <h2 className="text-lg font-semibold">{translate(locale, "images")}</h2>
           <ul className="mt-3 grid gap-3 sm:grid-cols-2">
             {images.map((image) => (
-              <li key={image.id} className="rounded border border-neutral-200 bg-white p-3">
+              <li key={image.id} className="rounded-xl border border-line bg-white p-3 shadow-sm">
                 {/* Catalog images are same-origin media objects. */}
                 <img src={image.url} alt={image.alt_text ?? ""} className="h-32 w-full object-contain" />
                 {image.is_primary ? <p className="mt-2 text-sm">{translate(locale, "primary")}</p> : null}
@@ -442,11 +443,11 @@ export function ProductEditor({ productId }: { productId?: number }) {
                   className={field}
                 />
               </label>
-              <p id="product-image-alt-hint" className="mt-1 max-w-xs text-xs text-neutral-500">
+              <p id="product-image-alt-hint" className="mt-1 max-w-xs text-xs text-mute">
                 {translate(locale, "altTextHint")}
               </p>
             </div>
-            <button type="submit" className="rounded border border-neutral-300 px-3 py-2 text-sm">
+            <button type="submit" className="btn-secondary">
               {translate(locale, "save")}
             </button>
           </form>

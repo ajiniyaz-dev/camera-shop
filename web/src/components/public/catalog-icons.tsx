@@ -25,7 +25,7 @@ import {
 
 import { categoryMark, type CategoryMark } from "@/lib/home-category";
 
-/** Shared with the header cart control. */
+/** Shared with the header cart control and add-to-cart buttons. Do not recolor casually. */
 export const SELECTION_CART_COLOR = "#FF414D";
 
 /** Outline stroke used on catalog Lucide icons. */
@@ -67,7 +67,7 @@ export function CategoryOutlineIcon({
 
 type MetaIconProps = Pick<LucideProps, "className">;
 
-const metaClass = "mt-0.5 h-3.5 w-3.5 shrink-0 text-navy/40";
+const metaClass = "mt-0.5 h-3.5 w-3.5 shrink-0 text-mute";
 
 export function ModelMetaIcon({ className = metaClass }: MetaIconProps) {
   return <Hash aria-hidden="true" className={className} strokeWidth={CATALOG_ICON_STROKE} />;
@@ -81,18 +81,19 @@ export function CategoryMetaIcon({ className = metaClass }: MetaIconProps) {
   return <Folder aria-hidden="true" className={className} strokeWidth={CATALOG_ICON_STROKE} />;
 }
 
-export function PriceMetaIcon({ className = "h-4 w-4 shrink-0 text-navy/35" }: MetaIconProps) {
+export function PriceMetaIcon({ className = "h-4 w-4 shrink-0 text-mute" }: MetaIconProps) {
   return <Tag aria-hidden="true" className={className} strokeWidth={CATALOG_ICON_STROKE} />;
 }
 
 export function SelectionCartIcon({
   className = "h-4 w-4 shrink-0",
-}: MetaIconProps) {
+  tone = "cart",
+}: MetaIconProps & { tone?: "cart" | "inherit" }) {
   return (
     <ShoppingCart
       aria-hidden="true"
       className={className}
-      color={SELECTION_CART_COLOR}
+      color={tone === "cart" ? SELECTION_CART_COLOR : "currentColor"}
       strokeWidth={CATALOG_ICON_STROKE}
     />
   );

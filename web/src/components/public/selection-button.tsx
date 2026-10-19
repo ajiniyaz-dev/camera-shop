@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { focusLight } from "@/components/public/brand-mark";
 import { SelectionCartIcon } from "@/components/public/catalog-icons";
 import { messages, type PublicLocale } from "@/lib/public-i18n";
 import { addToSelection, readSelection, removeFromSelection, SELECTION_EVENT, writeSelection } from "@/lib/selection";
@@ -44,16 +43,12 @@ export function SelectionButton({ slug, locale }: { slug: string; locale: Public
         type="button"
         aria-pressed={included}
         onClick={change}
-        className={`inline-flex min-h-11 w-full items-center justify-center gap-2 border px-4 text-sm font-medium transition-colors sm:w-auto sm:min-w-[13.5rem] ${focusLight} ${
-          included
-            ? "border-navy/20 bg-mist text-navy hover:border-brand"
-            : "border-[#FF414D]/45 bg-white text-navy hover:border-[#FF414D] hover:bg-mist"
-        }`}
+        className={`w-full sm:w-auto sm:min-w-[13.5rem] ${included ? "btn-cart-active" : "btn-cart"}`}
       >
-        <SelectionCartIcon />
+        <SelectionCartIcon tone={included ? "cart" : "inherit"} />
         <span>{included ? text.removeFromSelection : text.addToSelection}</span>
       </button>
-      {notice ? <span className="text-xs text-navy/70">{notice}</span> : null}
+      {notice ? <span className="text-xs text-mute">{notice}</span> : null}
     </span>
   );
 }

@@ -18,7 +18,7 @@ type Profile = {
   social_links: LinkRow[];
 };
 
-const field = "mt-1 w-full rounded border border-neutral-300 px-3 py-2";
+const field = "mt-1 w-full rounded-lg border border-line px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
 export default function ProfilePage() {
   const locale = useAdminLocale();
@@ -101,7 +101,7 @@ export default function ProfilePage() {
           </button>
         </div>
         {message ? <p className="text-sm sm:col-span-2">{message}</p> : null}
-        <button type="submit" className="w-fit rounded bg-neutral-900 px-4 py-2 text-sm text-white">
+        <button type="submit" className="btn-primary w-fit">
           {translate(locale, "save")}
         </button>
       </form>

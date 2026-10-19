@@ -28,7 +28,7 @@ export default async function LocaleLayout({
   const locale = await requireLocale(params);
   const company = await loadPublic<Company>(`/api/public/company?locale=${locale}`);
   return (
-    <div className="flex min-h-screen flex-col bg-mist text-navy">
+    <div className="flex min-h-screen flex-col bg-mist text-ink">
       <SiteHeader locale={locale} company={company} />
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:py-12" id="content">
         {children}

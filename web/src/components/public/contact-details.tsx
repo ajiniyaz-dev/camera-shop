@@ -17,18 +17,18 @@ export function ContactDetails({ company, locale }: { company: Company; locale: 
   const fields = contactFields(company, locale);
   if (!fields.length && !company.social_links?.length) return null;
   return (
-    <section className="overflow-hidden rounded-md border border-navy/10 bg-white shadow-sm" aria-labelledby="contact-heading">
+    <section className="overflow-hidden rounded-xl border border-line bg-white shadow-card" aria-labelledby="contact-heading">
       <AccentBar />
       <div className="p-6 sm:p-8">
-        <h2 id="contact-heading" className="text-2xl font-semibold tracking-tight text-navy">
+        <h2 id="contact-heading" className="text-2xl font-semibold tracking-tight text-ink">
           {text.contact}
         </h2>
         {fields.length ? (
-          <dl className="mt-6 grid gap-5 border-t border-navy/10 pt-6 sm:grid-cols-2">
+          <dl className="mt-6 grid gap-5 border-t border-line pt-6 sm:grid-cols-2">
             {fields.map((field) => (
               <div key={field.label}>
                 <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">{field.label}</dt>
-                <dd className="mt-1 text-navy">
+                <dd className="mt-1 text-ink">
                   {field.href ? (
                     <a className={`underline-offset-4 hover:underline ${focusLight}`} href={field.href}>
                       {field.value}

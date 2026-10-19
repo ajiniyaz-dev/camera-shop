@@ -30,13 +30,13 @@ export function LoginForm({ locale }: { locale: Locale }) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-mist px-4">
       <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">{translate(locale, "login")}</h1>
+        <h1 className="text-2xl font-semibold text-ink">{translate(locale, "login")}</h1>
         <LanguageSwitcher locale={locale} />
       </div>
-      <form onSubmit={submit} className="space-y-4 rounded border border-neutral-200 bg-white p-4">
-        <label className="block text-sm">
+      <form onSubmit={submit} className="space-y-4 surface-card p-5">
+        <label className="block text-sm text-ink">
           {translate(locale, "email")}
           <input
             type="email"
@@ -45,10 +45,10 @@ export function LoginForm({ locale }: { locale: Locale }) {
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="mt-1 w-full rounded border border-neutral-300 px-3 py-2"
+            className="mt-1 w-full rounded-lg border border-line px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           />
         </label>
-        <label className="block text-sm">
+        <label className="block text-sm text-ink">
           {translate(locale, "password")}
           <input
             type="password"
@@ -57,7 +57,7 @@ export function LoginForm({ locale }: { locale: Locale }) {
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="mt-1 w-full rounded border border-neutral-300 px-3 py-2"
+            className="mt-1 w-full rounded-lg border border-line px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           />
         </label>
         {message ? (
@@ -65,7 +65,7 @@ export function LoginForm({ locale }: { locale: Locale }) {
             {message}
           </p>
         ) : null}
-        <button type="submit" disabled={pending} className="rounded bg-neutral-900 px-4 py-2 text-sm text-white">
+        <button type="submit" disabled={pending} className="btn-primary w-full">
           {translate(locale, "signIn")}
         </button>
       </form>

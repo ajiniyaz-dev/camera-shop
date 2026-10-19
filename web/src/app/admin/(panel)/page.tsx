@@ -43,7 +43,7 @@ export default function DashboardPage() {
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold">{translate(locale, "dashboard")}</h1>
+      <h1 className="text-2xl font-semibold text-ink">{translate(locale, "dashboard")}</h1>
       {message ? (
         <p role="alert" className="mt-3 text-sm text-red-700">
           {message}
@@ -51,22 +51,23 @@ export default function DashboardPage() {
       ) : null}
       <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([label, value]) => (
-          <li key={label} className="rounded border border-neutral-200 bg-white p-4">
-            <p className="text-sm text-neutral-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold">{value}</p>
+          <li key={label} className="surface-card p-4">
+            <p className="text-sm text-mute">{label}</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">{value}</p>
+            <span aria-hidden="true" className="mt-3 block h-1 w-8 rounded-full bg-sky/80" />
           </li>
         ))}
       </ul>
-      <h2 className="mt-8 text-lg font-semibold">{translate(locale, "recentImports")}</h2>
+      <h2 className="mt-8 text-lg font-semibold text-ink">{translate(locale, "recentImports")}</h2>
       {data.recent_imports.length === 0 ? (
-        <p className="mt-2 text-sm text-neutral-600">{translate(locale, "noJobs")}</p>
+        <p className="mt-2 text-sm text-mute">{translate(locale, "noJobs")}</p>
       ) : (
-        <ul className="mt-2 divide-y rounded border border-neutral-200 bg-white">
+        <ul className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line bg-white shadow-sm">
           {data.recent_imports.map((job) => (
-            <li key={job.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span>#{job.id}</span>
-              <span>{job.status}</span>
-              <Link href={`/admin/imports/${job.id}`} className="underline">
+            <li key={job.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+              <span className="font-medium text-ink">#{job.id}</span>
+              <span className="rounded-full bg-mist px-2 py-0.5 text-xs font-medium text-mute">{job.status}</span>
+              <Link href={`/admin/imports/${job.id}`} className="font-medium text-brand underline-offset-4 hover:underline">
                 {translate(locale, "details")}
               </Link>
             </li>

@@ -81,18 +81,18 @@ export default function ProductsPage() {
     <section>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{translate(locale, "products")}</h1>
-        <Link href="/admin/products/new" className="rounded bg-neutral-900 px-3 py-2 text-sm text-white">
+        <Link href="/admin/products/new" className="btn-primary">
           {translate(locale, "createProduct")}
         </Link>
       </div>
       <form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={(event) => event.preventDefault()}>
         <label className="text-sm">
           {translate(locale, "search")}
-          <input value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} className="mt-1 w-full rounded border border-neutral-300 px-3 py-2" />
+          <input value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} className="mt-1 w-full rounded border border-line px-3 py-2" />
         </label>
         <label className="text-sm">
           {translate(locale, "status")}
-          <select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value); }} className="mt-1 w-full rounded border border-neutral-300 px-3 py-2">
+          <select value={status} onChange={(event) => { setPage(1); setStatus(event.target.value); }} className="mt-1 w-full rounded border border-line px-3 py-2">
             <option value="">{translate(locale, "all")}</option>
             <option value="published">{translate(locale, "published")}</option>
             <option value="draft">{translate(locale, "draft")}</option>
@@ -101,7 +101,7 @@ export default function ProductsPage() {
         </label>
         <label className="text-sm">
           {translate(locale, "stock")}
-          <select value={stock} onChange={(event) => { setPage(1); setStock(event.target.value); }} className="mt-1 w-full rounded border border-neutral-300 px-3 py-2">
+          <select value={stock} onChange={(event) => { setPage(1); setStock(event.target.value); }} className="mt-1 w-full rounded border border-line px-3 py-2">
             <option value="">{translate(locale, "all")}</option>
             <option value="in_stock">{translate(locale, "inStock")}</option>
             <option value="out_of_stock">{translate(locale, "outOfStock")}</option>
@@ -109,7 +109,7 @@ export default function ProductsPage() {
         </label>
         <label className="text-sm">
           {translate(locale, "sort")}
-          <select value={sort} onChange={(event) => setSort(event.target.value)} className="mt-1 w-full rounded border border-neutral-300 px-3 py-2">
+          <select value={sort} onChange={(event) => setSort(event.target.value)} className="mt-1 w-full rounded border border-line px-3 py-2">
             <option value="model">{translate(locale, "model")}</option>
             <option value="updated">{translate(locale, "saved")}</option>
             <option value="price">{translate(locale, "price")}</option>
@@ -117,7 +117,7 @@ export default function ProductsPage() {
         </label>
         <label className="text-sm">
           {translate(locale, "brand")}
-          <select value={brandId} onChange={(event) => { setPage(1); setBrandId(event.target.value); }} className="mt-1 w-full rounded border border-neutral-300 px-3 py-2">
+          <select value={brandId} onChange={(event) => { setPage(1); setBrandId(event.target.value); }} className="mt-1 w-full rounded border border-line px-3 py-2">
             <option value="">{translate(locale, "all")}</option>
             {brands.map((brand) => (
               <option key={brand.id} value={brand.id}>{brand.name_ru}</option>
@@ -126,7 +126,7 @@ export default function ProductsPage() {
         </label>
         <label className="text-sm">
           {translate(locale, "category")}
-          <select value={categoryId} onChange={(event) => { setPage(1); setCategoryId(event.target.value); }} className="mt-1 w-full rounded border border-neutral-300 px-3 py-2">
+          <select value={categoryId} onChange={(event) => { setPage(1); setCategoryId(event.target.value); }} className="mt-1 w-full rounded border border-line px-3 py-2">
             <option value="">{translate(locale, "all")}</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>{category.name_ru}</option>
@@ -138,9 +138,9 @@ export default function ProductsPage() {
       {listStatus(loading, failed, rows.length) === "loading" ? <p className="mt-6 text-sm">{translate(locale, "loading")}</p> : null}
       {listStatus(loading, failed, rows.length) === "empty" ? <p className="mt-6 text-sm">{translate(locale, "noProducts")}</p> : null}
       {rows.length > 0 ? (
-        <div className="mt-4 overflow-x-auto rounded border border-neutral-200 bg-white">
+        <div className="mt-4 overflow-x-auto rounded border border-line bg-white">
           <div className="min-w-[46rem]" role="table">
-            <div role="row" className={`${productColumns} border-b border-neutral-200 py-2 text-xs font-medium text-neutral-500`}>
+            <div role="row" className={`${productColumns} border-b border-line py-2 text-xs font-medium text-mute`}>
               <span role="columnheader" className="text-left">{translate(locale, "model")}</span>
               <span role="columnheader" className="text-left">{translate(locale, "brand")}</span>
               <span role="columnheader" className="text-left">{translate(locale, "price")}</span>
@@ -155,7 +155,7 @@ export default function ProductsPage() {
                     key={row.id}
                     href={`/admin/products/${row.id}`}
                     role="row"
-                    className={`${productColumns} py-3 text-sm hover:bg-neutral-50`}
+                    className={`${productColumns} py-3 text-sm hover:bg-mist`}
                   >
                     <span role="cell" className="min-w-0 truncate text-left font-medium" title={row.model_display}>
                       {row.model_display}

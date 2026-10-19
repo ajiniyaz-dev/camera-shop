@@ -38,7 +38,7 @@ export function SelectionLink({ locale }: { locale: PublicLocale }) {
     <Link
       href={selectionNavHref(locale)}
       aria-label={selectionNavLabel(text.selection, count)}
-      className={`relative z-10 inline-flex min-h-11 min-w-11 items-center justify-center px-3 ${focusDark}`}
+      className={`relative z-10 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-3 transition-colors hover:bg-white/10 motion-reduce:transition-none ${focusDark}`}
     >
       <span className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center" aria-hidden="true">
         <ShoppingCart className="h-6 w-6" color={SELECTION_CART_COLOR} strokeWidth={CATALOG_ICON_STROKE} />
