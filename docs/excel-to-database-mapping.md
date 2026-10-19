@@ -63,7 +63,7 @@ Both files are mapped independently. A Hikvision upload does not write EZVIZ col
 | Both | All | Anchor on a model row, column B | `product_images.association_status = high` | public when the product is published | Extract to the checksum store. Record anchors | PNG, JPEG, or WebP by content | On a later apply of this source, add a checksum the product does not have. Do not delete existing images. Do not change an administrator-chosen primary |
 | Both | All | Anchor on a model row, other column | `needs_review` | admin until confirmed | Same extract | Same MIME rule | Stays non-public |
 | Both | All | Anchor not on a model row | `import_assets.link_status = unassigned` | admin | Keep the file and the anchor | | Never auto-link |
-| Both | All | Merged photo range covering extra model rows | `shared_candidate` | admin | Report only | | Link only after confirmation |
+| Both | All | Merged photo range covering extra model rows | `shared_candidate` | public when linked (same checksum as the donor `linked_high`) | Report the share; do not copy bytes again | Same MIME rule | Client-approved: attach as `high` for every model row the merge covers. Uniqueness across products is not required. Do not invent links from nearby rows or category |
 | Both | All | Derived | `alt_text` | public | `{brand} {model}` or `{model}` when the brand is null | | Do not overwrite admin alt text |
 
 ## Rows that do not become products

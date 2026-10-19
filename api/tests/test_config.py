@@ -55,7 +55,9 @@ def test_schema_revisions_are_present() -> None:
         if path.name != "__init__.py"
     )
     assert revisions == [
+        "approved_uz_en_product_names.py",
         "phase2a_core_schema.py",
         "phase2b_import_schema.py",
         "phase3_admin_sessions.py",
+        "source_backed_missing_primaries.py",
     ]

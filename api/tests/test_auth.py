@@ -635,7 +635,7 @@ def test_upgrade_preserves_existing_admin_and_catalog_rows() -> None:
         assert product.slug == "preserved-admin-product"
         assert product.public_price_status == "on_request"
         assert sessions is not None
-        assert version == "phase3_admin_sessions"
+        assert version == "source_backed_missing_primaries"
         command.downgrade(config, "phase2b_import")
         with db_engine.connect() as connection:
             names = {

@@ -19,15 +19,26 @@ function distinctModelCode(product: PublicDetail, displayName: string): string |
   return model;
 }
 
+/** True when the brand label is the same site name (any common casing), so the title should not repeat it. */
+export function brandMatchesSiteName(brand: string | null | undefined, siteName: string): boolean {
+  if (!brand) {
+    return true;
+  }
+  return brand.trim().toLocaleLowerCase("en") === siteName.trim().toLocaleLowerCase("en");
+}
+
 export function productTitle(product: PublicDetail, siteName = PRODUCT_SEO_SITE_NAME): string {
   if (product.seo_title) {
     return product.seo_title;
   }
-  const brand = product.brand?.name ?? siteName;
+  const brandName = product.brand?.name?.trim() || null;
   const name = productDisplayName(product);
   const model = distinctModelCode(product, name);
   const head = model ? `${name} (${model})` : name;
-  return `${head} — ${brand} | ${siteName}`;
+  if (brandMatchesSiteName(brandName, siteName)) {
+    return `${head} | ${siteName}`;
+  }
+  return `${head} — ${brandName} | ${siteName}`;
 }
 
 export function productDescription(product: PublicDetail): string {

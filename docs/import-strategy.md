@@ -119,7 +119,7 @@ Read drawing anchors. Do not zip images to rows by order.
 3. Top-left anchor on a model row in the `Фото` column: `linked_high`.
 4. Top-left anchor on a model row in another column: `linked_review`. Not public until confirmed.
 5. Top-left anchor not on a model row: `unassigned`. Not attached to the nearest product.
-6. A merged `Фото` range that covers extra model rows with no anchor of their own: `shared_candidate` for those extra rows. Do not copy the file onto them.
+6. A merged `Фото` range that covers extra model rows with no anchor of their own: `shared_candidate` for those extra rows. Do not copy the file onto them. On apply, a non-excluded `shared_candidate` is linked like `linked_high` (same checksum, association `high`) so each covered product may use that verified image as primary. Unique images per product are not required. `linked_review` and `unassigned` stay unlinked until verified.
 7. A tall anchor that overlaps the next row does not assign the image to that next row.
 
 Several high-confidence images on one row all belong to that product. The first becomes primary only when the product does not already have an administrator-chosen primary.

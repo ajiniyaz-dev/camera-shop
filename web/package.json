@@ -5,7 +5,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --experimental-strip-types --test src/lib/product-seo.test.ts"
   },
   "dependencies": {
     "lucide-react": "^1.59.0",

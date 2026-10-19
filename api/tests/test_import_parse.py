@@ -141,8 +141,11 @@ def test_ezviz_dealer_price_services_and_repeated_models(tmp_path: Path) -> None
     assert {row.proposal["option_label"] for row in services} == {"Ежемесячно:", "Ежегодно:"}
     shared = next(row for row in services if row.proposal["option_label"] == "Ежегодно:")
     assert shared.proposal["images"][0]["link_status"] == "shared_candidate"
+    assert shared.proposal["images"][0]["proposed_primary"] is True
     owner = next(row for row in services if row.proposal["option_label"] == "Ежемесячно:")
     assert owner.proposal["images"][0]["link_status"] == "linked_high"
+    assert owner.proposal["images"][0]["proposed_primary"] is True
+    assert shared.proposal["images"][0]["sha256"] == owner.proposal["images"][0]["sha256"]
 
 
 def test_anchor_rules_do_not_guess_overlap_or_accept_other_formats() -> None:
@@ -162,6 +165,12 @@ def test_anchor_rules_do_not_guess_overlap_or_accept_other_formats() -> None:
         (3, "linked_high"),
         (4, "shared_candidate"),
     ]
+    from app.importing.images import is_source_publishable_link
+
+    assert is_source_publishable_link("linked_high")
+    assert is_source_publishable_link("shared_candidate")
+    assert not is_source_publishable_link("linked_review")
+    assert not is_source_publishable_link("unassigned")
     review = ImageAnchor("Sheet", 1, 3, 4, None, png)
     review_result = associate_images([review], model_rows={3}, photo_column=2, photo_merges=[])
     assert review_result[0].link_status == "linked_review"

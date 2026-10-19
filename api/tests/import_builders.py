@@ -95,6 +95,19 @@ def ezviz_workbook(path: Path) -> None:
     workbook.close()
 
 
+def workbook_with_off_column_photo(path: Path) -> None:
+    """One model row with a drawing in a non-photo column (linked_review only)."""
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "NVR"
+    sheet.append(["№", "Фото", "Модель", "Характеристика", "Цена"])
+    sheet.append([1, None, "Hikvision NVR-Review", "только review-якорь", 40])
+    add_png(sheet, 2, 4, png_bytes(11))  # column D, not Фото
+    workbook.save(path)
+    workbook.close()
+
+
 def workbook_with_duplicate_model(path: Path) -> None:
     workbook = Workbook()
     sheet = workbook.active

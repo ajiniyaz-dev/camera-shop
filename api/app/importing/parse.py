@@ -11,7 +11,12 @@ from zipfile import ZipFile
 from openpyxl import load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.importing.images import AssociatedImage, associate_images, read_all_anchors
+from app.importing.images import (
+    AssociatedImage,
+    associate_images,
+    is_source_publishable_link,
+    read_all_anchors,
+)
 from app.importing.normalize import (
     build_match_key,
     classify_price,
@@ -595,11 +600,19 @@ def _attach_images(rows: list[ParsedRow], images: list[AssociatedImage]) -> None
         row = by_row.get(row_number)
         if row is None or row.classification not in {"product", "service"}:
             continue
-        ordered = sorted(attached, key=lambda image: (image.index, image.link_status or ""))
+        # Prefer an exact photo-column anchor over a merged-range share when both exist.
+        ordered = sorted(
+            attached,
+            key=lambda image: (
+                0 if image.link_status == "linked_high" else 1 if image.link_status == "shared_candidate" else 2,
+                image.index,
+                image.link_status or "",
+            ),
+        )
         primary_assigned = False
         rendered: list[dict[str, Any]] = []
         for image in ordered:
-            proposed_primary = image.link_status == "linked_high" and not primary_assigned
+            proposed_primary = is_source_publishable_link(image.link_status) and not primary_assigned
             if proposed_primary:
                 primary_assigned = True
             rendered.append(

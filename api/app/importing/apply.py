@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.brand_groups import is_other_brand, is_other_brand_name
+from app.importing.images import SOURCE_PUBLISHABLE_LINK_STATUSES, is_source_publishable_link
 from app.importing.normalize import same_category_name
 from app.importing.slug import allocate_slug, product_slug, slug_part
 from app.models import (
@@ -406,7 +407,7 @@ def _link_images(
     wanted = [
         image
         for image in (row.proposal or {}).get("images") or []
-        if image.get("link_status") == "linked_high" and not image.get("excluded")
+        if is_source_publishable_link(image.get("link_status")) and not image.get("excluded")
     ]
     if not wanted:
         return 0
@@ -414,7 +415,7 @@ def _link_images(
         session.scalars(
             select(ImportAsset).where(
                 ImportAsset.import_file_id == row.import_file_id,
-                ImportAsset.link_status == "linked_high",
+                ImportAsset.link_status.in_(tuple(SOURCE_PUBLISHABLE_LINK_STATUSES)),
                 ImportAsset.worksheet == row.worksheet_name,
             )
         ).all()

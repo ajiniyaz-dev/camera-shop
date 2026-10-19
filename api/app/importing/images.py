@@ -13,6 +13,18 @@ _PNG = b"\x89PNG\r\n\x1a\n"
 _JPEG = b"\xff\xd8\xff"
 _EXTENSIONS = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
 
+# Source-backed associations that may become public product images.
+# ``shared_candidate`` is a merged photo-column range covering extra model rows;
+# the client allows the same verified file as primary on every associated product.
+# ``linked_review`` and ``unassigned`` stay admin-only until verified.
+SOURCE_PUBLISHABLE_LINK_STATUSES = frozenset({"linked_high", "shared_candidate"})
+
+
+def is_source_publishable_link(link_status: str | None) -> bool:
+    """True when apply may attach this workbook association as a public image."""
+
+    return link_status in SOURCE_PUBLISHABLE_LINK_STATUSES
+
 
 @dataclass(frozen=True)
 class ImageAnchor:

@@ -8,7 +8,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.auth.passwords import hash_password
 from app.config import Settings, get_settings
@@ -32,6 +32,7 @@ from tests.import_builders import (
     hikvision_workbook,
     single_hikvision_row,
     workbook_with_duplicate_model,
+    workbook_with_off_column_photo,
 )
 
 API_ROOT = Path(__file__).resolve().parents[1]
@@ -345,6 +346,22 @@ def test_apply_prices_images_and_idempotency(client: TestClient, engine, media_r
             assert service_ru.localized_name != service.option_label
             assert {item.locale for item in service.translations} == {"ru"}
         assert db.scalar(select(func.count()).select_from(ProductImage).where(ProductImage.product_id == priced.id)) >= 1
+        # Merged photo range: monthly owns linked_high; yearly is shared_candidate — both get the file.
+        service_images = {
+            item.option_label: db.scalars(
+                select(ProductImage).where(ProductImage.product_id == item.id)
+            ).all()
+            for item in services
+        }
+        assert len(service_images["Ежемесячно:"]) == 1
+        assert len(service_images["Ежегодно:"]) == 1
+        monthly_img = service_images["Ежемесячно:"][0]
+        yearly_img = service_images["Ежегодно:"][0]
+        assert monthly_img.sha256 == yearly_img.sha256
+        assert monthly_img.object_key == yearly_img.object_key
+        assert monthly_img.is_primary and yearly_img.is_primary
+        assert monthly_img.association_status == "high"
+        assert yearly_img.association_status == "high"
         source = db.scalar(select(ProductSourceRecord).where(ProductSourceRecord.product_id == priced.id))
         assert source is not None
         assert source.internal_note == "текущая цена со скидкой 60$"
@@ -358,6 +375,106 @@ def test_apply_prices_images_and_idempotency(client: TestClient, engine, media_r
     db = Session(bind=engine)
     try:
         assert db.scalar(select(func.count()).select_from(Product).where(Product.model_display == "HiLook IPC-1")) == 1
+    finally:
+        db.close()
+
+
+def test_shared_candidate_image_is_public_for_each_associated_product(
+    client: TestClient, engine, media_root: Path, tmp_path: Path
+) -> None:
+    """Client-approved: one verified Excel image may be primary on every merged-range product."""
+
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Ezviz pr.xlsx"
+    ezviz_workbook(path)
+    created = _upload(client, headers, path)
+    job_id = created.json()["id"]
+    applied = client.post(f"/api/admin/imports/{job_id}/apply", json={"confirm": True}, headers=headers)
+    assert applied.status_code == 200
+
+    db = Session(bind=engine)
+    try:
+        services = db.scalars(
+            select(Product)
+            .where(Product.product_kind == "service")
+            .options(selectinload(Product.images), selectinload(Product.translations))
+        ).all()
+        assert len(services) == 2
+        digests = set()
+        keys = set()
+        for product in services:
+            assert len(product.images) == 1
+            image = product.images[0]
+            assert image.association_status == "high"
+            assert image.is_primary is True
+            digests.add(image.sha256.strip())
+            keys.add(image.object_key)
+            assert (media_root / image.object_key).is_file()
+        assert len(digests) == 1
+        assert len(keys) == 1
+        digest = next(iter(digests))
+        key = next(iter(keys))
+    finally:
+        db.close()
+
+    # Publish drafts and give each row a distinct English name so public alts differ.
+    db = Session(bind=engine)
+    try:
+        expected_alts: dict[str, str] = {}
+        for product in db.scalars(
+            select(Product)
+            .where(Product.product_kind == "service")
+            .options(selectinload(Product.images), selectinload(Product.translations))
+        ).all():
+            product.catalog_status = "published"
+            period = "monthly" if "Ежемесячно" in (product.option_label or "") else "yearly"
+            en_name = f"7-day video event history ({period})"
+            expected_alts[product.slug] = en_name
+            product.images[0].alt_text = "общее фото"  # Cyrillic stored alt yields to Latin EN name
+            en = next((item for item in product.translations if item.locale == "en"), None)
+            if en is None:
+                db.add(
+                    ProductTranslation(
+                        product_id=product.id,
+                        locale="en",
+                        localized_name=en_name,
+                        description="shared history plan",
+                        origin="manual",
+                    )
+                )
+            else:
+                en.localized_name = en_name
+        db.commit()
+    finally:
+        db.close()
+
+    for slug, expected_alt in expected_alts.items():
+        detail = client.get(f"/api/public/products/{slug}", params={"locale": "en"}).json()
+        assert detail["image"]["url"] == f"/media/{key}"
+        assert detail["image"]["alt"] == expected_alt
+        assert detail["images"][0]["url"] == f"/media/{key}"
+        assert detail["images"][0]["alt"] == expected_alt
+
+
+def test_linked_review_image_stays_unlinked_on_apply(
+    client: TestClient, engine, tmp_path: Path
+) -> None:
+    _seed(engine)
+    headers = _auth(client)
+    path = tmp_path / "Hikvision pr.xlsx"
+    workbook_with_off_column_photo(path)
+    created = _upload(client, headers, path)
+    job_id = created.json()["id"]
+    preview = client.get(f"/api/admin/imports/{job_id}", headers=ORIGIN)
+    assert preview.status_code == 200
+    applied = client.post(f"/api/admin/imports/{job_id}/apply", json={"confirm": True}, headers=headers)
+    assert applied.status_code == 200
+    db = Session(bind=engine)
+    try:
+        product = db.scalar(select(Product).where(Product.model_display == "Hikvision NVR-Review"))
+        assert product is not None
+        assert db.scalar(select(func.count()).select_from(ProductImage).where(ProductImage.product_id == product.id)) == 0
     finally:
         db.close()
 

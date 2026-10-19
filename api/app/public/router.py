@@ -248,10 +248,25 @@ def _displayed_amount_column():
     )
 
 
+def _image_alt(stored: str | None, locale_name: str) -> str:
+    """Prefer a non-Cyrillic locale name over a Cyrillic stored alt (import/model text)."""
+    cleaned_stored = _clean(stored)
+    cleaned_name = _clean(locale_name) or ""
+    if not cleaned_stored:
+        return cleaned_name
+    if (
+        cleaned_name
+        and _CYRILLIC.search(cleaned_stored) is not None
+        and _CYRILLIC.search(cleaned_name) is None
+    ):
+        return cleaned_name
+    return cleaned_stored
+
+
 def _image(image: ProductImage, alt: str) -> dict[str, object]:
     return {
         "url": f"/media/{image.object_key}",
-        "alt": _clean(image.alt_text) or alt,
+        "alt": _image_alt(image.alt_text, alt),
         "width": image.width,
         "height": image.height,
         "is_primary": image.is_primary,

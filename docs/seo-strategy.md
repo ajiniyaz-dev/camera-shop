@@ -61,7 +61,7 @@ Product descriptions:
 
 Each indexable URL has:
 
-- One `<title>`. Prefer the locale’s `seo_title`. Otherwise `{model} — {brand or HikVision} | HikVision` for products, and `{localized category} | HikVision` for categories.
+- One `<title>`. Prefer the locale’s `seo_title`. Otherwise products use the localized name (or display model): `{name} — {brand} | HikVision` when the brand is a distinct manufacturer, or `{name} | HikVision` when the brand is missing or matches the site name (any common casing of HikVision/Hikvision). A distinct equipment model code may appear as `{name} ({model})` only when it differs from the name and looks like a model token, not a translated phrase. Categories use `{localized category} | HikVision`.
 - One meta description, from `seo_description` or the fallback in the previous section. Do not invent specifications.
 - One H1. Products use the localized name if one was saved, otherwise the display model.
 - `<link rel="canonical">` to that locale’s own URL on the configured public origin. The tag is omitted while the origin is still the loopback placeholder.
@@ -90,7 +90,7 @@ JSON-LD in the server-rendered page.
 - `description`: the locale’s description, or omit it when the page is showing the Russian original on a non-Russian URL. Do not put the fallback Russian text in an Uzbek or English `description` field.
 - `image`: public image URLs.
 - `sku`: the slug, because the model is not unique.
-- `offers` when the public status is `numeric`: `price`, `priceCurrency` = `USD`. No discount fields. No `availability` quantity. When status is `on_request` or `hidden`, omit `offers`. Do not emit zero.
+- `offers` when the public status is `numeric`: `price`, `priceCurrency` = `UZS` (the same displayed soʻm amount as the page). Stored catalog amounts remain USD in the database and admin; public JSON-LD must not advertise USD. No discount fields. No `availability` quantity. When status is `on_request` or `hidden`, omit `offers`. Do not emit zero.
 - Out of stock may add `offers.availability` = `OutOfStock` only when staff set that status and a numeric price exists. In stock omits availability. Do not mark items in stock by default inside structured data if that would claim stock the business did not confirm; omitting availability is the default. Out-of-stock is the only stock fact the business asked to show, so that is the only availability value emitted.
 
 **BreadcrumbList** uses the locale’s labels and URLs: Home, catalog, brand or category, product.
@@ -139,7 +139,7 @@ Soft-deleted or archived slugs are not reused. Old slugs 301 only when a redirec
 - Brand and category pages link to their children and products.
 - Product pages link to brand, category, and other published products in the same category. Same category is not a merge.
 - Breadcrumbs match the structured data.
-- Alt text defaults to brand plus model, or model alone.
+- Alt text uses the stored image alt when it is appropriate. On Uzbek and English pages, a Cyrillic stored alt (often import model text) yields to the locale product name when that name has no Cyrillic. Russian pages keep Cyrillic alts. Do not invent specifications in alt text.
 - The primary image is the LCP candidate and includes width and height when known.
 - Checksum URLs use long cache headers because the path changes when the bytes change.
 - Category grids use a resized image. The product page can use a larger rendition. The extracted file remains the original.
@@ -151,7 +151,7 @@ Soft-deleted or archived slugs are not reused. Old slugs 301 only when a redirec
 2. Verify the property in Google Search Console and submit the sitemap.
 3. Inspect one Russian product URL, its Uzbek and English alternates, and a request-price URL. Confirm H1, canonical, and `hreflang`.
 4. Confirm unpublished URLs 404 and `/admin` is excluded.
-5. Validate Product structured data. Confirm USD appears only on numeric prices and discount notes do not appear.
+5. Validate Product structured data. Confirm numeric offers use `UZS` (not stored USD), and discount notes do not appear.
 6. Add analytics only if the client approves a specific tool. It must not block rendering.
 7. Create or claim a Business Profile only with the verified name and the contact details the client has actually provided.
 

@@ -223,7 +223,7 @@ def test_migration_creates_core_tables_and_company_seed(schema_engine) -> None:
         assert PHASE3_TABLES <= names
         assert DEFERRED_TABLES.isdisjoint(names)
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert version == "phase3_admin_sessions"
+        assert version == "source_backed_missing_primaries"
         profile = connection.execute(
             text(
                 """
@@ -286,7 +286,7 @@ def test_migration_round_trip_from_empty_database() -> None:
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
         engine.dispose()
         assert count == 1
-        assert version == "phase3_admin_sessions"
+        assert version == "source_backed_missing_primaries"
     finally:
         if previous is None:
             os.environ.pop("DATABASE_URL", None)

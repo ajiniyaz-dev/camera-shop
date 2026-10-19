@@ -516,6 +516,7 @@ def test_product_detail_prices_images_and_fallback(client: TestClient, engine) -
     assert english["name"] == "Dome camera"
     assert english["translation_fallback"] is False
     assert english["price"] == {"status": "numeric", "amount": "288000", "currency": "UZS"}
+    assert english["image"]["alt"] == "Front"
     requested = client.get("/api/public/products/request-cam", params={"locale": "ru"}).json()
     assert requested["price"] == {"status": "on_request", "amount": None, "currency": None}
     assert requested["out_of_stock"] is True
@@ -536,6 +537,41 @@ def test_product_detail_prices_images_and_fallback(client: TestClient, engine) -
         assert stored is not None
         assert stored.public_price_amount == Decimal("30.00")
         assert stored.public_currency == "USD"
+
+
+def test_public_image_alt_prefers_localized_name_over_cyrillic_stored(
+    client: TestClient, engine
+) -> None:
+    from app.public.router import _image_alt
+
+    assert _image_alt(None, "Flexible transition") == "Flexible transition"
+    assert _image_alt("Front", "Flexible transition") == "Front"
+    assert _image_alt("гибкий переход", "Flexible transition") == "Flexible transition"
+    assert _image_alt("гибкий переход", "гибкий переход") == "гибкий переход"
+    assert _image_alt("гибкий переход", "Купольная") == "гибкий переход"
+
+    _seed(engine)
+    with Session(bind=engine) as db:
+        product = db.scalar(select(Product).where(Product.slug == "child-cam"))
+        assert product is not None
+        primary = db.scalar(
+            select(ProductImage).where(
+                ProductImage.product_id == product.id,
+                ProductImage.is_primary.is_(True),
+            )
+        )
+        assert primary is not None
+        primary.alt_text = "гибкий переход"
+        db.commit()
+
+    english = client.get("/api/public/products/child-cam", params={"locale": "en"}).json()
+    assert english["name"] == "Dome camera"
+    assert english["image"]["alt"] == "Dome camera"
+    assert english["images"][0]["alt"] == "Dome camera"
+
+    russian = client.get("/api/public/products/child-cam", params={"locale": "ru"}).json()
+    assert russian["name"] == "Купольная"
+    assert russian["image"]["alt"] == "гибкий переход"
 
 
 def test_categories_brands_and_company_are_public(client: TestClient, engine) -> None:
