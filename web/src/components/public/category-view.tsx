@@ -34,12 +34,13 @@ export async function CategoryView({
     })),
   ];
   return (
-    <main className="space-y-8">
+    <main className="space-y-5">
       <JsonLd data={breadcrumbJson(crumbs)} />
       <Breadcrumbs label={text.categories} items={crumbs} />
       <PageHeading
         title={category.name}
         description={category.description}
+        count={category.product_count}
         action={{ href: `/${locale}/catalog`, label: text.allProducts }}
       />
       {showOriginalNote(category.translation_fallback, category.name) || showOriginalNote(category.description_fallback, category.description) ? (
@@ -50,17 +51,15 @@ export async function CategoryView({
           <h2 id="subcategories-heading" className="text-xl font-semibold tracking-tight text-navy">
             {text.subcategories}
           </h2>
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <ul className="flex flex-wrap gap-2">
             {category.children.map((child) => (
               <li key={child.slug}>
                 <Link
                   href={`/${locale}/categories/${category.slug}/${child.slug}`}
-                  className={`flex h-full items-center gap-3 border border-navy/10 bg-white p-4 shadow-sm hover:border-brand ${focusLight}`}
+                  className={`inline-flex min-h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink hover:border-brand hover:text-brand ${focusLight}`}
                 >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-mist text-brand">
-                    <CategoryOutlineIcon slug={child.slug} className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 font-semibold text-navy">{child.name}</span>
+                  <CategoryOutlineIcon slug={child.slug} className="h-4 w-4 text-brand" />
+                  {child.name}
                 </Link>
               </li>
             ))}

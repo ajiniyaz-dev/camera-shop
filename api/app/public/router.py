@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.dependencies import get_db
@@ -276,6 +276,16 @@ def _image(image: ProductImage, alt: str) -> dict[str, object]:
 def _visible_images(product: Product) -> list[ProductImage]:
     visible = [image for image in product.images if image.association_status in PUBLIC_IMAGES]
     return sorted(visible, key=lambda image: (not image.is_primary, image.sort_order, image.id))
+
+
+def _has_public_image():
+    """True when a product would show a catalog photo (high/confirmed association)."""
+    return exists(
+        select(ProductImage.id).where(
+            ProductImage.product_id == Product.id,
+            ProductImage.association_status.in_(PUBLIC_IMAGES),
+        )
+    )
 
 
 def _card(product: Product, locale: str, index: dict[int, Category]) -> dict[str, object]:
@@ -591,7 +601,7 @@ def products(
     rows = db.scalars(
         base.where(*filters)
         .options(*_product_options())
-        .order_by(*order)
+        .order_by(case((_has_public_image(), 0), else_=1), *order)
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()

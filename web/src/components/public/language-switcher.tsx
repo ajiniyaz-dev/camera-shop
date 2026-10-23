@@ -11,8 +11,9 @@ const labels: Record<PublicLocale, string> = {
   uz: "Oʻzbekcha",
   en: "English",
 };
+const shortLabels: Record<PublicLocale, string> = { ru: "RU", uz: "UZ", en: "EN" };
 
-export function LanguageSwitcher({ locale }: { locale: PublicLocale }) {
+export function LanguageSwitcher({ locale, tone = "dark" }: { locale: PublicLocale; tone?: "dark" | "light" }) {
   const text = messages[locale];
   const pathname = usePathname() || `/${locale}`;
   const params = useSearchParams();
@@ -32,11 +33,12 @@ export function LanguageSwitcher({ locale }: { locale: PublicLocale }) {
             hrefLang={item}
             lang={item}
             aria-current={current ? "page" : undefined}
-            className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3 transition-colors motion-reduce:transition-none ${focusDark} ${
-              current ? "bg-brand text-white shadow-sm shadow-brand/40" : "text-white/80 hover:bg-white/10 hover:text-white"
+            className={`inline-flex min-h-11 items-center justify-center rounded-lg px-2 transition-colors motion-reduce:transition-none ${tone === "light" ? "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" : focusDark} ${
+              current ? "bg-brand text-white shadow-sm shadow-brand/40" : tone === "light" ? "text-ink/80 hover:bg-mist hover:text-ink" : "text-white/80 hover:bg-white/10 hover:text-white"
             }`}
           >
-            {labels[item]}
+            <span className="sm:hidden">{shortLabels[item]}</span>
+            <span className="hidden sm:inline">{labels[item]}</span>
           </Link>
         );
       })}

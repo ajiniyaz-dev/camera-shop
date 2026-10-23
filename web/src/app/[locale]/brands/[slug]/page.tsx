@@ -39,7 +39,7 @@ export default async function BrandPage({
     { name: brand.name, path: `/${locale}/brands/${slug}` },
   ];
   return (
-    <main className="space-y-8">
+    <main className="space-y-5">
       <JsonLd data={breadcrumbJson(crumbs)} />
       <Breadcrumbs label={text.navigation} items={crumbs} />
       <PageHeading title={brand.name} description={brand.description} action={{ href: `/${locale}/catalog`, label: text.allProducts }} />

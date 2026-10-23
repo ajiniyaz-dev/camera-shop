@@ -30,7 +30,7 @@ export default async function ProductsPage({
   const text = messages[locale];
   const query = await searchParams;
   return (
-    <main className="space-y-8">
+    <main className="space-y-5">
       <Breadcrumbs
         label={text.navigation}
         items={[

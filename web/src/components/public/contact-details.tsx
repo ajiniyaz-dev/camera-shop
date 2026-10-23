@@ -5,7 +5,7 @@ import { messages, type PublicLocale } from "@/lib/public-i18n";
 export function contactFields(company: Company, locale: PublicLocale) {
   const text = messages[locale];
   return [
-    company.phone ? { label: text.phone, value: company.phone, href: undefined } : null,
+    company.phone ? { label: text.phone, value: company.phone, href: `tel:${company.phone}` } : null,
     company.email ? { label: text.email, value: company.email, href: `mailto:${company.email}` } : null,
     company.address ? { label: text.address, value: company.address, href: undefined } : null,
     company.opening_hours ? { label: text.hours, value: company.opening_hours, href: undefined } : null,

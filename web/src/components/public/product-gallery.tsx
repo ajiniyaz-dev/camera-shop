@@ -6,6 +6,8 @@ import { CameraGlyph, focusLight } from "@/components/public/brand-mark";
 import { ProductPhoto } from "@/components/public/product-photo";
 import type { PublicImage } from "@/lib/public-api";
 
+const stageClass = "flex h-[15.5rem] w-full items-center justify-center p-2 sm:h-[18rem] sm:p-3 md:h-[22rem] lg:h-[26rem]";
+
 export function ProductGallery({
   images,
   emptyLabel,
@@ -18,20 +20,20 @@ export function ProductGallery({
   const [active, setActive] = useState(0);
   if (!images.length) {
     return (
-      <div className="flex h-80 flex-col items-center justify-center gap-3 border border-navy/10 bg-mist px-4 text-center text-sm text-navy/70">
-        <CameraGlyph className="h-12 w-12 text-navy" />
+      <div className={`${stageClass} flex-col gap-2 px-4 text-center text-sm text-navy/70`}>
+        <CameraGlyph className="h-10 w-10 text-navy" />
         {emptyLabel}
       </div>
     );
   }
   const image = images[Math.min(active, images.length - 1)];
   return (
-    <div className="space-y-3">
-      <div className="flex min-h-80 items-center justify-center border border-navy/10 bg-mist p-4">
-        <ProductPhoto src={image.url} alt={image.alt} width={image.width} height={image.height} limit="gallery" />
+    <div className="flex flex-col gap-2">
+      <div className={stageClass}>
+        <ProductPhoto src={image.url} alt={image.alt} width={image.width} height={image.height} />
       </div>
       {images.length > 1 ? (
-        <ul className="grid grid-cols-4 gap-2 sm:grid-cols-5" aria-label={label}>
+        <ul className="flex flex-wrap gap-2 px-2 pb-2" aria-label={label}>
           {images.map((item, index) => {
             const selected = index === active;
             return (
@@ -40,12 +42,15 @@ export function ProductGallery({
                   type="button"
                   aria-label={item.alt}
                   aria-pressed={selected}
+                  aria-current={selected ? "true" : undefined}
                   onClick={() => setActive(index)}
-                  className={`flex h-20 w-full items-center justify-center border bg-mist p-1 ${focusLight} ${
-                    selected ? "border-brand" : "border-navy/10 hover:border-brand/50"
+                  className={`relative h-14 w-14 overflow-hidden rounded-md border bg-white ${focusLight} ${
+                    selected ? "border-brand ring-1 ring-brand/40" : "border-line hover:border-brand/50"
                   }`}
                 >
-                  <ProductPhoto src={item.url} alt="" width={item.width} height={item.height} />
+                  <span className="absolute inset-1 flex items-center justify-center">
+                    <ProductPhoto src={item.url} alt="" width={item.width} height={item.height} />
+                  </span>
                 </button>
               </li>
             );

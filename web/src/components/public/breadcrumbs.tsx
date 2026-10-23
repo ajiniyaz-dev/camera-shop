@@ -2,10 +2,18 @@ import Link from "next/link";
 
 import { focusLight } from "@/components/public/brand-mark";
 
-export function Breadcrumbs({ label, items }: { label: string; items: Array<{ name: string; path: string }> }) {
+export function Breadcrumbs({
+  label,
+  items,
+  compact = false,
+}: {
+  label: string;
+  items: Array<{ name: string; path: string }>;
+  compact?: boolean;
+}) {
   return (
     <nav aria-label={label}>
-      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      <ol className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 ${compact ? "text-xs sm:text-sm" : "text-sm"}`}>
         {items.map((item, index) => {
           const current = index === items.length - 1;
           return (

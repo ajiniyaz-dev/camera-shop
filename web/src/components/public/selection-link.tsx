@@ -19,7 +19,7 @@ import {
  * Shared public navigation control for the browser-persisted product selection.
  * Used once in the site header (desktop and mobile). Not checkout.
  */
-export function SelectionLink({ locale }: { locale: PublicLocale }) {
+export function SelectionLink({ locale, tone = "dark" }: { locale: PublicLocale; tone?: "dark" | "light" }) {
   const text = messages[locale];
   const [count, setCount] = useState(0);
 
@@ -38,12 +38,12 @@ export function SelectionLink({ locale }: { locale: PublicLocale }) {
     <Link
       href={selectionNavHref(locale)}
       aria-label={selectionNavLabel(text.selection, count)}
-      className={`relative z-10 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-3 transition-colors hover:bg-white/10 motion-reduce:transition-none ${focusDark}`}
+      className={`relative z-10 inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-3 transition-colors motion-reduce:transition-none ${tone === "light" ? "hover:bg-mist focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" : `hover:bg-white/10 ${focusDark}`}`}
     >
       <span className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center" aria-hidden="true">
         <ShoppingCart className="h-6 w-6" color={SELECTION_CART_COLOR} strokeWidth={CATALOG_ICON_STROKE} />
         <span
-          className="pointer-events-none absolute -right-2.5 -top-2.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-navy"
+          className={`pointer-events-none absolute -right-2.5 -top-2.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none text-white ring-2 ${tone === "light" ? "ring-white" : "ring-navy"}`}
           style={{ backgroundColor: SELECTION_CART_COLOR }}
         >
           {count}

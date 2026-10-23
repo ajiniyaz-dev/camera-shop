@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 
 import { CameraGlyph, focusLight } from "@/components/public/brand-mark";
 import { ProductPhoto } from "@/components/public/product-photo";
@@ -20,7 +21,7 @@ import { messages, type PublicLocale } from "@/lib/public-i18n";
 
 type Status = "idle" | "loading" | "ready" | "empty" | "error";
 
-export function HomeSearch({ locale }: { locale: PublicLocale }) {
+export function HomeSearch({ locale, compact = false }: { locale: PublicLocale; compact?: boolean }) {
   const text = messages[locale];
   const router = useRouter();
   const listId = useId();
@@ -144,11 +145,11 @@ export function HomeSearch({ locale }: { locale: PublicLocale }) {
   const activeId = active >= 0 ? `${listId}-${active}` : undefined;
 
   return (
-    <form ref={rootRef} action={`/${locale}/search`} method="get" role="search" className="relative w-full max-w-xl">
-      <label htmlFor="home-search" className="text-sm font-semibold text-white">
+    <form ref={rootRef} action={`/${locale}/search`} method="get" role="search" className={`relative w-full ${compact ? "max-w-none" : "max-w-xl"}`}>
+      <label htmlFor="home-search" className={compact ? "sr-only" : "text-sm font-semibold text-white"}>
         {text.searchCatalog}
       </label>
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+      <div className={`flex gap-2 ${compact ? "" : "mt-2 flex-col sm:flex-row"}`}>
         <div className="relative min-w-0 flex-1">
           <input
             id="home-search"
@@ -168,7 +169,7 @@ export function HomeSearch({ locale }: { locale: PublicLocale }) {
               if (status !== "idle") setOpen(true);
             }}
             onKeyDown={onKeyDown}
-            className="min-h-11 w-full rounded-lg border border-white/20 bg-white px-3 text-ink shadow-sm placeholder:text-mute focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
+            className={`min-h-11 w-full rounded-full border px-4 text-ink shadow-sm placeholder:text-mute focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${compact ? "border-[#d9dce3] bg-[#f7f8fa] focus-visible:outline-brand" : "border-white/20 bg-white focus-visible:outline-sky"}`}
           />
           {open ? (
             <div
@@ -237,8 +238,8 @@ export function HomeSearch({ locale }: { locale: PublicLocale }) {
             </div>
           ) : null}
         </div>
-        <button type="submit" className="btn-on-dark min-w-[6.5rem]">
-          {text.search}
+        <button type="submit" aria-label={text.search} className={compact ? "grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink hover:bg-mist focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" : "btn-on-dark min-w-[6.5rem]"}>
+          {compact ? <Search aria-hidden="true" className="h-5 w-5" /> : text.search}
         </button>
       </div>
       <p className="sr-only" role="status" aria-live="polite">

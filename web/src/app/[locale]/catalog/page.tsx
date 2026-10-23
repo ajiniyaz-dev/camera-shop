@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { Breadcrumbs } from "@/components/public/breadcrumbs";
-import { PageHeading } from "@/components/public/page-heading";
 import { ProductListing } from "@/components/public/product-listing";
 import { requireLocale, type SearchParams } from "@/lib/public-api";
 import { messages } from "@/lib/public-i18n";
@@ -37,7 +36,7 @@ export default async function CatalogPage({
   const text = messages[locale];
   const query = await searchParams;
   return (
-    <main className="space-y-8">
+    <main className="space-y-5">
       <Breadcrumbs
         label={text.navigation}
         items={[
@@ -45,8 +44,13 @@ export default async function CatalogPage({
           { name: text.catalog, path: `/${locale}/catalog` },
         ]}
       />
-      <PageHeading title={text.catalog} description={text.heroText} action={{ href: `/${locale}/categories`, label: text.categories }} />
-      <ProductListing locale={locale} pathname={`/${locale}/catalog`} searchParams={query} />
+      <ProductListing
+        locale={locale}
+        pathname={`/${locale}/catalog`}
+        searchParams={query}
+        headingTitle={text.catalog}
+        intro={{ title: text.catalogInfoTitle, body: text.catalogInfoBody }}
+      />
     </main>
   );
 }

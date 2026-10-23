@@ -11,15 +11,22 @@ test("a photo keeps its real pixel size and does not invent a large stand-in", (
   assert.deepEqual(productPhotoAttributes(0, 400), {});
 });
 
-test("photos stay contained inside the frame and are not forced to its width", () => {
-  for (const name of [productPhotoClassName(), productPhotoClassName("gallery")]) {
-    const classes = name.split(/\s+/);
-    assert.equal(classes.includes("object-contain"), true);
-    assert.equal(classes.includes("w-auto"), true);
-    assert.equal(classes.includes("h-auto"), true);
-    assert.equal(classes.includes("w-full"), false);
-    assert.equal(classes.includes("object-cover"), false);
-  }
-  assert.match(productPhotoClassName("gallery"), /max-h-\[32rem\]/);
+test("listing photos stay contained inside the frame and are not forced to its width", () => {
+  const classes = productPhotoClassName().split(/\s+/);
+  assert.equal(classes.includes("object-contain"), true);
+  assert.equal(classes.includes("w-auto"), true);
+  assert.equal(classes.includes("h-auto"), true);
+  assert.equal(classes.includes("w-full"), false);
+  assert.equal(classes.includes("object-cover"), false);
   assert.match(productPhotoClassName(), /max-h-full/);
+});
+
+test("gallery photos stay contained without enlarging small source files", () => {
+  const classes = productPhotoClassName("gallery").split(/\s+/);
+  assert.equal(classes.includes("object-contain"), true);
+  assert.equal(classes.includes("object-cover"), false);
+  assert.equal(classes.includes("h-auto"), true);
+  assert.equal(classes.includes("w-auto"), true);
+  assert.equal(classes.includes("max-h-full"), true);
+  assert.equal(classes.includes("max-w-full"), true);
 });

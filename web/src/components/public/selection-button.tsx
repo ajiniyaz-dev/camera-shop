@@ -6,7 +6,17 @@ import { SelectionCartIcon } from "@/components/public/catalog-icons";
 import { messages, type PublicLocale } from "@/lib/public-i18n";
 import { addToSelection, readSelection, removeFromSelection, SELECTION_EVENT, writeSelection } from "@/lib/selection";
 
-export function SelectionButton({ slug, locale }: { slug: string; locale: PublicLocale }) {
+export function SelectionButton({
+  slug,
+  locale,
+  compact = false,
+  stretch = false,
+}: {
+  slug: string;
+  locale: PublicLocale;
+  compact?: boolean;
+  stretch?: boolean;
+}) {
   const text = messages[locale];
   const [included, setIncluded] = useState(false);
   const [notice, setNotice] = useState("");
@@ -38,12 +48,12 @@ export function SelectionButton({ slug, locale }: { slug: string; locale: Public
   }
 
   return (
-    <span className="inline-flex w-full flex-col items-stretch gap-1 sm:w-auto">
+    <span className={`inline-flex w-full flex-col items-stretch gap-1 ${compact || stretch ? "" : "sm:w-auto"}`}>
       <button
         type="button"
         aria-pressed={included}
         onClick={change}
-        className={`w-full sm:w-auto sm:min-w-[13.5rem] ${included ? "btn-cart-active" : "btn-cart"}`}
+        className={`${included ? "btn-cart-active" : "btn-cart"} ${compact ? "btn-compact w-full" : stretch ? "w-full" : "w-full sm:w-auto sm:min-w-[13.5rem]"}`}
       >
         <SelectionCartIcon tone={included ? "cart" : "inherit"} />
         <span>{included ? text.removeFromSelection : text.addToSelection}</span>

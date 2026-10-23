@@ -4,6 +4,7 @@ import {
   Building2,
   Cable,
   Camera,
+  ChevronLeft,
   Folder,
   HardDrive,
   Hash,
@@ -83,6 +84,14 @@ export function CategoryMetaIcon({ className = metaClass }: MetaIconProps) {
 
 export function PriceMetaIcon({ className = "h-4 w-4 shrink-0 text-mute" }: MetaIconProps) {
   return <Tag aria-hidden="true" className={className} strokeWidth={CATALOG_ICON_STROKE} />;
+}
+
+export function ContactActionIcon({ className = "h-4 w-4 shrink-0" }: MetaIconProps) {
+  return <Phone aria-hidden="true" className={className} strokeWidth={CATALOG_ICON_STROKE} />;
+}
+
+export function BackLinkIcon({ className = "h-4 w-4 shrink-0" }: MetaIconProps) {
+  return <ChevronLeft aria-hidden="true" className={className} strokeWidth={CATALOG_ICON_STROKE} />;
 }
 
 export function SelectionCartIcon({

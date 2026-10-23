@@ -30,7 +30,7 @@ export default async function LocaleLayout({
   return (
     <div className="flex min-h-screen flex-col bg-mist text-ink">
       <SiteHeader locale={locale} company={company} />
-      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:py-12" id="content">
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-8" id="content">
         {children}
       </div>
       <SiteFooter locale={locale} company={company} />

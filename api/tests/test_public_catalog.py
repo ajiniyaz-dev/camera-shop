@@ -486,6 +486,95 @@ def test_filters_search_sort_and_pagination(client: TestClient, engine) -> None:
     ).status_code == 422
 
 
+def test_lists_public_images_before_missing_and_keeps_sort(client: TestClient, engine) -> None:
+    _seed(engine)
+    db = Session(bind=engine)
+    try:
+        job_id = db.scalar(select(ImportJob.id))
+        assert job_id is not None
+        cheap = _product(
+            db,
+            slug="pictured-z",
+            model_display="ZZZ-PIC",
+            public_price_status="numeric",
+            public_price_amount=Decimal("5.00"),
+            public_currency="USD",
+        )
+        _translation(cheap, "ru", "С фото Z", None)
+        costly = _product(
+            db,
+            slug="pictured-a",
+            model_display="AAA-PIC",
+            public_price_status="numeric",
+            public_price_amount=Decimal("50.00"),
+            public_currency="USD",
+        )
+        _translation(costly, "ru", "С фото A", None)
+        rejected_only = _product(db, slug="rejected-img", model_display="AAA-REJ")
+        _translation(rejected_only, "ru", "Отклонённое фото", None)
+        review_only = _product(db, slug="review-img", model_display="AAA-REV")
+        _translation(review_only, "ru", "На проверке", None)
+        for product, digest, key, status in (
+            (cheap, "e" * 64, "objects/ee/pictured-z.png", "high"),
+            (costly, "f" * 64, "objects/ff/pictured-a.png", "confirmed"),
+            (rejected_only, "1" * 64, "objects/11/rejected.png", "rejected"),
+            (review_only, "2" * 64, "objects/22/review.png", "needs_review"),
+        ):
+            db.add(
+                ProductImage(
+                    product_id=product.id,
+                    storage_backend="local",
+                    object_key=key,
+                    mime_type="image/png",
+                    byte_size=20,
+                    sha256=digest,
+                    sort_order=0,
+                    is_primary=True,
+                    association_status=status,
+                )
+            )
+        _source(db, cheap, source_code="hikvision", job_id=job_id, row=40)
+        _source(db, costly, source_code="hikvision", job_id=job_id, row=41)
+        db.commit()
+    finally:
+        db.close()
+
+    by_model = client.get("/api/public/products", params={"locale": "ru", "sort": "model", "page_size": 48})
+    assert by_model.status_code == 200
+    model_slugs = [item["slug"] for item in by_model.json()["products"]]
+    pictured = ["pictured-a", "child-cam", "pictured-z"]
+    assert model_slugs[:3] == pictured
+    assert model_slugs.index("pictured-z") < model_slugs.index("priced-high")
+    assert model_slugs.index("rejected-img") > model_slugs.index("pictured-z")
+    assert model_slugs.index("review-img") > model_slugs.index("pictured-z")
+    assert len(model_slugs) == len(set(model_slugs))
+
+    by_price = client.get("/api/public/products", params={"locale": "ru", "sort": "price_asc", "page_size": 48})
+    price_slugs = [item["slug"] for item in by_price.json()["products"]]
+    assert price_slugs.index("pictured-z") < price_slugs.index("child-cam") < price_slugs.index("pictured-a")
+    assert price_slugs.index("pictured-a") < price_slugs.index("priced-low")
+    assert price_slugs.index("priced-low") < price_slugs.index("priced-high")
+
+    collected: list[str] = []
+    seen_unpictured = False
+    for page in range(1, 20):
+        body = client.get(
+            "/api/public/products",
+            params={"locale": "ru", "sort": "model", "page_size": 1, "page": page},
+        ).json()
+        if not body["products"]:
+            break
+        slug = body["products"][0]["slug"]
+        collected.append(slug)
+        if slug in pictured:
+            assert seen_unpictured is False
+        else:
+            seen_unpictured = True
+    assert collected[:3] == pictured
+    assert len(collected) == len(set(collected))
+    assert set(pictured) <= set(collected)
+
+
 def test_product_detail_prices_images_and_fallback(client: TestClient, engine) -> None:
     _seed(engine)
     detail = client.get("/api/public/products/child-cam", params={"locale": "uz"})

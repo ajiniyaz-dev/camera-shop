@@ -71,21 +71,11 @@ export function HomeProductCard({ product, locale }: { product: PublicCard; loca
     <article className="h-full">
       <Link
         href={`/${locale}/products/${product.slug}`}
-        className={`group flex h-full flex-col overflow-hidden rounded-xl border border-line bg-white shadow-card outline-none transition duration-200 hover:border-sky/70 hover:shadow-lift motion-reduce:transition-none ${focusLight}`}
+        className={`group flex h-full flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm outline-none transition duration-200 hover:border-[#2563EB] hover:shadow-md motion-reduce:transition-none ${focusLight}`}
       >
-        {product.image ? (
-          <span className="flex h-40 w-full items-center justify-center border-b border-line bg-mist">
-            <ProductPhoto src={product.image.url} alt={product.image.alt} width={product.image.width} height={product.image.height} />
-          </span>
-        ) : (
-          <span className="flex h-40 flex-col items-center justify-center gap-2 border-b border-line bg-mist px-4 text-center text-sm text-mute">
-            <CameraGlyph className="h-9 w-9 text-navy" />
-            {text.noImage}
-          </span>
-        )}
-        <span className="flex flex-1 flex-col gap-1 p-4">
-          {isServicePlan(product) ? <span className="text-xs font-semibold uppercase tracking-[0.14em] text-teal">{text.service}</span> : null}
-          <h3 className="line-clamp-2 text-base font-semibold leading-snug text-ink group-hover:text-brand">
+        <span className="flex flex-1 flex-col gap-1 p-5 sm:p-6">
+          {isServicePlan(product) ? <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563EB]">{text.service}</span> : null}
+          <h3 className="line-clamp-2 text-base font-semibold leading-snug text-[#1D4ED8] group-hover:text-[#2563EB]">
             {product.name || product.model_display}
           </h3>
           <span className="truncate text-sm text-mute">
@@ -93,10 +83,23 @@ export function HomeProductCard({ product, locale }: { product: PublicCard; loca
             {billingLabel(product.option_label, text) || (product.option_label ? ` · ${product.option_label}` : "")}
           </span>
           <span className="min-h-5 truncate text-sm text-mute">{labeledMeta(product, text) || meta}</span>
-          <span className="mt-auto border-t border-line pt-3 text-lg font-semibold text-ink">
+          <span className="mt-3 border-t border-[#E5E7EB] pt-3 text-xl font-semibold text-[#1D4ED8]">
             {formatPublicPrice(product.price, locale)}
           </span>
+          <span className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-brand">
+            {text.viewProduct}<span aria-hidden="true">→</span>
+          </span>
         </span>
+        {product.image ? (
+          <span className="flex h-44 w-full items-center justify-center px-5 pb-5 sm:h-52 sm:px-7 sm:pb-6">
+            <ProductPhoto src={product.image.url} alt={product.image.alt} width={product.image.width} height={product.image.height} />
+          </span>
+        ) : (
+          <span className="flex h-40 flex-col items-center justify-center gap-2 px-4 pb-5 text-center text-sm text-mute">
+            <CameraGlyph className="h-9 w-9 text-[#1D4ED8]" />
+            {text.noImage}
+          </span>
+        )}
       </Link>
     </article>
   );

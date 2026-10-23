@@ -3,12 +3,12 @@ import type { CategoryNode, PublicCard } from "@/lib/public-api";
 export const HERO_CATEGORY_SLUG = "ip-kamery";
 
 export const FEATURED_CATEGORY_SLUGS = [
-  "colorvu",
+  "ezviz",
   "nvr-2",
   "ptz-2",
+  "colorvu",
   "turbo-hd-kamera",
   "poe-kommutatory",
-  "ezviz",
 ] as const;
 
 export const SHORTCUT_CATEGORY_SLUGS = [
